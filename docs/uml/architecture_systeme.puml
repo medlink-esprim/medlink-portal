@@ -1,0 +1,45 @@
+@startuml
+!include style.puml
+skinparam nodesep 22
+skinparam ranksep 40
+package "Couche présentation" as PRES #FFF8F8 {
+  component "Espace patient" as ep
+  component "Espace praticien" as epr
+  component "Back-office\n(personnel, administrateur, direction)" as bo
+}
+package "Couche d'accès sécurisé" as ACC #FFF0F0 {
+  component "Filtrage applicatif\n(pare-feu applicatif WAF)" as waf
+  component "Passerelle API\n(HTTPS, limitation de débit)" as gw
+}
+package "Couche services métier" as SRV #F5F8FF {
+  component "Service\nd'authentification\n(comptes, MFA, sessions)" as auth
+  component "Service\nrendez-vous\n(créneaux, agenda)" as rdv
+  component "Service\ndossiers\n(dossiers, documents)" as dos
+  component "Service\nback-office\n(statistiques, audit)" as bko
+  component "Service\nnotifications" as notif
+}
+package "Services transverses" as TR #FFFAF0 {
+  component "Contrôle d'accès\n(RBAC)" as rbac
+  component "Journalisation\net audit" as log
+  component "Gestion des secrets\net des clés" as sec
+  rbac -[hidden]down- log
+  log -[hidden]down- sec
+}
+package "Couche données" as DATA #FFFAFA {
+  database "Base de données\nrelationnelle chiffrée" as db
+  database "Stockage des\ndocuments chiffrés" as doc
+}
+
+ep --> waf : HTTPS
+epr --> waf : HTTPS
+bo --> waf : HTTPS
+waf --> gw
+gw --> auth : REST
+gw --> rdv : REST
+gw --> dos : REST
+gw --> bko : REST
+rdv --> notif
+dos --> notif
+SRV --> DATA : SQL / fichiers chiffrés
+SRV -right-> TR : utilise
+@enduml

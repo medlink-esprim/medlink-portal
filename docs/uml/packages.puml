@@ -1,0 +1,45 @@
+@startuml
+!include style.puml
+skinparam nodesep 30
+skinparam ranksep 35
+package "frontend (React)" as PRES {
+  package "pages" as pg {
+    [patient] 
+    [praticien]
+    [backoffice]
+  }
+  rectangle "composants" as cmp
+  rectangle "client API (Axios)" as capi
+}
+package "backend (Node.js / Express)" as API {
+  rectangle "routes REST" as rt
+  package "middlewares" as mw {
+    [jwt]
+    [rbac]
+    [validation]
+    [audit]
+  }
+  package "services métier" as srv {
+    [auth]
+    [rendezvous]
+    [dossiers]
+    [notifications]
+    [statistiques]
+  }
+  rectangle "dépôts\n(accès aux données)" as dal
+  package "securite" as sec {
+    [chiffrement]
+    [vault]
+  }
+}
+database "PostgreSQL" as db
+
+pg ..> cmp
+pg ..> capi
+capi ..> rt : HTTPS / REST
+rt ..> mw
+rt ..> srv
+srv ..> dal
+srv ..> sec
+dal ..> db
+@enduml

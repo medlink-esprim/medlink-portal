@@ -1,0 +1,47 @@
+@startuml
+!include style.puml
+hide footbox
+skinparam boundaryBackgroundColor #FBEAEC
+skinparam boundaryBorderColor #910014
+skinparam controlBackgroundColor #FBEAEC
+skinparam controlBorderColor #910014
+skinparam databaseBackgroundColor #FFFFFF
+autonumber
+actor "Visiteur" as V
+boundary "Page\nInscription" as PI
+boundary "Page\nVérification e-mail" as PV
+control "AuthController\n/api/auth" as C
+control "PolitiqueMotDePasse" as POL
+database "utilisateurs" as TU
+database "patients" as TP
+database "jetons_securite" as TJ
+participant "Service de\nmessagerie" as MSG
+
+V -> PI : Saisit nom, prénom, e-mail,\ntéléphone, mot de passe
+PI -> C : POST /api/auth/inscription
+C -> POL : checkPassword(motDePasse)
+alt Règles non respectées
+  POL --> C : liste des règles manquantes
+  C --> PI : 422 + règles
+  PI --> V : Affiche les règles non respectées
+else Mot de passe conforme
+  C -> TU : SELECT id_utilisateur WHERE email = $1
+  alt E-mail déjà utilisé
+    C --> PI : 202 (message générique)
+  else Nouvel e-mail
+    C -> C : Hachage Argon2id
+    C -> TU : INSERT (id_role = PATIENT,\nstatut = en_attente)
+    C -> TP : INSERT (numero_dossier)
+    C -> TJ : INSERT (type = verification_email,\njeton_hash, expire_le = +24 h)
+    C -> MSG : Lien /verification?token=…
+    C --> PI : 202 (message générique)
+  end
+  PI --> V : « Vérifiez votre boîte e-mail »
+end
+V -> PV : Ouvre le lien reçu
+PV -> C : POST /api/auth/verification {token}
+C -> TJ : UPDATE utilise = true\nWHERE jeton_hash = $1 AND NOT utilise\nAND expire_le > now() RETURNING id_utilisateur
+C -> TU : UPDATE statut = actif, email_verifie = true
+C --> PV : 200
+PV --> V : « Compte activé » → Page Connexion
+@enduml

@@ -1,0 +1,68 @@
+@startuml
+!include style.puml
+hide circle
+hide empty members
+skinparam linetype ortho
+skinparam nodesep 35
+skinparam ranksep 45
+entity "roles" as r {
+  * id_role : SMALLINT <<PK>>
+  --
+  * code : VARCHAR(20) <<unique>>
+  libelle : VARCHAR(60)
+}
+entity "utilisateurs" as u {
+  * id_utilisateur : UUID <<PK>>
+  --
+  * id_role : SMALLINT <<FK>>
+  nom : VARCHAR(80)
+  prenom : VARCHAR(80)
+  * email : VARCHAR(160) <<unique>>
+  telephone : VARCHAR(20)
+  mot_de_passe_hash : VARCHAR(255)
+  * statut : statut_compte
+  email_verifie : BOOLEAN
+  date_creation : TIMESTAMPTZ
+}
+entity "patients" as p {
+  * id_utilisateur : UUID <<PK, FK>>
+  --
+  * numero_dossier : VARCHAR(20) <<unique>>
+  date_naissance : DATE
+  sexe : CHAR(1)
+}
+entity "praticiens" as d {
+  * id_utilisateur : UUID <<PK, FK>>
+  --
+  specialite : VARCHAR(60)
+  numero_ordre : VARCHAR(20)
+}
+entity "personnels" as pe {
+  * id_utilisateur : UUID <<PK, FK>>
+  --
+  fonction : VARCHAR(60)
+  id_clinique : UUID <<FK>>
+}
+entity "cliniques" as c {
+  * id_clinique : UUID <<PK>>
+  --
+  * nom : VARCHAR(80)
+  ville : VARCHAR(40)
+  adresse : VARCHAR(200)
+}
+entity "jetons_securite" as j {
+  * id_jeton : UUID <<PK>>
+  --
+  * id_utilisateur : UUID <<FK>>
+  * type : type_jeton
+  * jeton_hash : CHAR(64)
+  * expire_le : TIMESTAMPTZ
+  utilise : BOOLEAN
+}
+r ||--o{ u
+u ||--o| p
+u ||--o| d
+u ||--o| pe
+c |o--o{ pe
+u ||--o{ j
+@enduml
