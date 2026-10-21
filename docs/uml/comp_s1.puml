@@ -1,0 +1,36 @@
+@startuml
+!include style.puml
+skinparam nodesep 30
+package "Frontend React" {
+  [Page Inscription] as pi
+  [Page Connexion] as pl
+  [Page Mot de passe oublié] as pr
+  [Back-office : création\nde comptes] as pc
+  [Client API (Axios, HTTPS)] as cli
+}
+package "Service Auth & Comptes (Node.js / Express)" {
+  [Routes /auth, /comptes] as r
+  [Validation des entrées\n(schémas Joi)] as val
+  [Politique de mots de passe] as pol
+  [AuthService\n(Argon2id, jetons)] as sa
+  [CompteService] as sc
+  [MailService\n(Nodemailer)] as mail
+}
+database "PostgreSQL" as db
+cloud "Serveur SMTP" as smtp
+
+pi --> cli
+pl --> cli
+pr --> cli
+pc --> cli
+cli ..> r : HTTPS / REST (JSON)
+r --> val
+r --> sa
+r --> sc
+sa --> pol
+sa --> db
+sc --> db
+sa --> mail
+sc --> mail
+mail ..> smtp : TLS
+@enduml

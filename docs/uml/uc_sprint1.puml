@@ -1,0 +1,30 @@
+@startuml
+!include style.puml
+left to right direction
+skinparam packageStyle rectangle
+actor "Visiteur\n(non authentifié)" as P
+actor "Personnel\nadministratif" as A
+actor "Service de\nmessagerie" as MSG <<système>>
+rectangle "Portail MedLink — Sprint 1" {
+  usecase "S'inscrire comme\npatient (US-01)" as UC01
+  usecase "Vérifier l'adresse e-mail" as VE
+  usecase "S'authentifier\n(US-02)" as UC02
+  usecase "Réinitialiser son\nmot de passe (US-03)" as UC03
+  usecase "Vérifier la politique de\nmot de passe (US-42)" as POL
+  usecase "Créer un compte praticien\nou agent (US-27)" as UC27
+  usecase "Envoyer une invitation\nd'activation" as INV
+}
+P --> UC01
+P --> UC02
+P --> UC03
+A --> UC27
+UC01 ..> POL : <<include>>
+UC03 ..> POL : <<include>>
+UC01 ..> VE : <<include>>
+UC27 ..> INV : <<include>>
+VE --> MSG
+INV --> MSG
+UC03 --> MSG
+note "Le personnel administratif\ndoit être authentifié\npour créer un compte." as N1
+A .. N1
+@enduml

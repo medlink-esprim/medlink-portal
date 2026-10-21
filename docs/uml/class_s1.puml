@@ -1,0 +1,76 @@
+@startuml
+!include style.puml
+hide empty members
+skinparam nodesep 40
+abstract class Utilisateur {
+  - idUtilisateur : UUID
+  - nom : String
+  - prenom : String
+  - email : String
+  - telephone : String
+  - motDePasseHash : String
+  - statut : StatutCompte
+  - emailVerifie : boolean
+  - dateCreation : DateTime
+  + verifierMotDePasse(mdp : String) : boolean
+  + changerMotDePasse(nouveau : String) : void
+  + activer() : void
+}
+class Role {
+  - idRole : int
+  - code : String
+  - libelle : String
+}
+class Patient {
+  - numeroDossier : String
+  - dateNaissance : Date
+  - sexe : String
+  + sInscrire() : void
+}
+class Praticien {
+  - specialite : String
+  - numeroOrdre : String
+}
+class Personnel {
+  - fonction : String
+  + creerCompte(donnees, role : Role) : Utilisateur
+}
+class Clinique {
+  - idClinique : UUID
+  - nom : String
+  - ville : String
+  - adresse : String
+}
+class JetonSecurite {
+  - idJeton : UUID
+  - type : TypeJeton
+  - jetonHash : String
+  - expireLe : DateTime
+  - utilise : boolean
+  + estValide() : boolean
+  + consommer() : void
+}
+class PolitiqueMotDePasse <<service>> {
+  - longueurMin : int = 12
+  + verifier(mdp : String) : List<String>
+}
+enum StatutCompte {
+  EN_ATTENTE
+  ACTIF
+  DESACTIVE
+}
+enum TypeJeton {
+  VERIFICATION_EMAIL
+  ACTIVATION
+  REINITIALISATION
+}
+Utilisateur <|-- Patient
+Utilisateur <|-- Praticien
+Utilisateur <|-- Personnel
+Utilisateur "*" -- "1" Role : possède >
+Utilisateur "1" -- "0..*" JetonSecurite : reçoit >
+Personnel "*" -- "0..1" Clinique : rattaché à >
+Utilisateur ..> PolitiqueMotDePasse : utilise
+Utilisateur ..> StatutCompte
+JetonSecurite ..> TypeJeton
+@enduml

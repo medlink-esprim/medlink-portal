@@ -1,0 +1,46 @@
+@startuml
+!include style.puml
+skinparam nodesep 25
+node "Poste client" as client {
+  artifact "Navigateur web" as nav
+}
+cloud "Internet" as net
+node "VPS hébergé en Tunisie\n(Ubuntu Server 24.04 LTS, Docker Compose)" as vps {
+  node "Réseau DMZ" as dmz {
+    artifact "nginx-waf\n(Nginx + ModSecurity CRS)" as rp
+    artifact "frontend\n(build React statique)" as fe
+  }
+  node "Réseau applicatif (interne)" as app {
+    artifact "auth-service\n(Node.js 20)" as auth
+    artifact "rdv-service\n(Node.js 20)" as rdv
+    artifact "dossiers-service\n(Node.js 20)" as dos
+    artifact "notification-worker" as nw
+  }
+  node "Réseau de données (interne)" as data {
+    database "postgres:16\n(volume chiffré)" as db
+    database "stockage-documents\n(fichiers chiffrés)" as doc
+  }
+  node "Réseau sécurité (interne)" as sec {
+    artifact "vault" as vault
+    artifact "logs centralisés\n(Loki + alertes)" as log
+  }
+}
+nav --> net : HTTPS
+net --> rp : 443/tcp
+rp --> fe
+rp --> auth
+rp --> rdv
+rp --> dos
+rdv --> nw
+auth --> db : 5432 (interne)
+dos --> doc
+auth ..> vault : 8200
+dos ..> vault
+note bottom of vps
+  Tous les services envoient leurs journaux
+  au collecteur de logs ; rdv-service et
+  dossiers-service accèdent aussi à PostgreSQL.
+  Seul le port 443 est exposé (pare-feu UFW).
+  SSH uniquement par clé, depuis une IP autorisée.
+end note
+@enduml

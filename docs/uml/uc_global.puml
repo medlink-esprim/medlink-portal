@@ -1,0 +1,96 @@
+@startuml
+!include style.puml
+left to right direction
+skinparam packageStyle rectangle
+skinparam nodesep 12
+skinparam ranksep 60
+
+actor "Visiteur\n(non authentifié)" as V
+actor "Patient" as P
+actor "Praticien" as D
+actor "Personnel\nadministratif" as A
+actor "Administrateur\ndu portail" as AD
+actor "Direction" as DIR
+actor "Service de messagerie\n(e-mail / SMS)" as MSG <<système>>
+
+
+rectangle "Portail MedLink" {
+  package "Accès public" {
+    usecase "UC-01 S'inscrire\n(compte patient)" as UC01
+    usecase "UC-02 S'authentifier" as UC02
+    usecase "UC-03 Réinitialiser\nson mot de passe" as UC03
+    usecase "Vérifier l'adresse e-mail" as VE
+    usecase "Vérifier le code MFA" as MFA
+  }
+
+  package "Espace patient" {
+    usecase "UC-04 Rechercher un\npraticien et un créneau" as UC04
+    usecase "UC-05 Réserver\nun rendez-vous" as UC05
+    usecase "UC-06 Annuler ou reporter\nun rendez-vous" as UC06
+    usecase "UC-07 Consulter l'historique\ndes rendez-vous" as UC07
+    usecase "UC-08 Recevoir confirmations\net rappels" as UC08
+    usecase "UC-09 Consulter et télécharger\nrésultats et documents" as UC09
+    usecase "UC-10 Gérer son profil\net ses données (INPDP)" as UC10
+  }
+  package "Espace praticien" {
+    usecase "UC-11 Gérer ses disponibilités\net absences" as UC11
+    usecase "UC-12 Consulter l'agenda\nmulti-sites" as UC12
+    usecase "UC-13 Rechercher\nun patient" as UC13
+    usecase "UC-14 Consulter le dossier\ndu patient" as UC14
+    usecase "UC-15 Rédiger un\ncompte-rendu" as UC15
+    usecase "UC-16 Publier un résultat\nd'examen" as UC16
+  }
+  package "Back-office" {
+    usecase "UC-17 Gérer les comptes\nutilisateurs" as UC17
+    usecase "UC-18 Affecter les praticiens\naux cliniques" as UC18
+    usecase "UC-19 Prendre un rendez-vous\npour un patient" as UC19
+    usecase "UC-20 Superviser l'activité\ndes cliniques" as UC20
+    usecase "UC-21 Exporter des statistiques\nanonymisées" as UC21
+    usecase "UC-22 Gérer les rôles\net les droits" as UC22
+    usecase "UC-23 Consulter le journal\nd'audit" as UC23
+    usecase "UC-24 Traiter les alertes\nde sécurité" as UC24
+    usecase "UC-25 Gérer sauvegardes\net maintenance" as UC25
+    usecase "UC-26 Consulter la synthèse\net les indicateurs" as UC26
+  }
+  usecase "Journaliser l'accès" as LOG
+}
+
+V --> UC01
+V --> UC02
+V --> UC03
+UC01 ..> VE : <<include>>
+MFA .> UC02 : <<extend>>\n[praticien, administrateur]
+VE --> MSG
+P --> UC04
+P --> UC05
+P --> UC06
+P --> UC07
+P --> UC08
+P --> UC09
+P --> UC10
+D --> UC11
+D --> UC12
+D --> UC13
+D --> UC14
+D --> UC15
+D --> UC16
+A --> UC17
+A --> UC18
+A --> UC19
+A --> UC20
+A --> UC21
+AD --> UC22
+AD --> UC23
+AD --> UC24
+AD --> UC25
+DIR --> UC26
+
+UC05 ..> UC04 : <<include>>
+UC15 ..> UC14 : <<include>>
+UC14 ..> LOG : <<include>>
+UC09 ..> LOG : <<include>>
+UC08 --> MSG
+note "Un visiteur devient Patient après\nl'inscription et la vérification de son\ne-mail. Les cas d'utilisation des espaces\npatient, praticien et back-office exigent\nune authentification préalable (UC-02)." as N1
+V .. N1
+N1 .. P
+@enduml
