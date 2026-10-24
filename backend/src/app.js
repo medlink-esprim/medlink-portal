@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const config = require('./config');
 const db = require('./db');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 app.set('trust proxy', config.trustProxy); // derrière le proxy Vite / Nginx
@@ -20,6 +21,15 @@ app.get('/api/health', async (req, res) => {
 });
 
 // ===== ROUTES : chaque user story ajoute sa ligne ici =====
+// US-02 : frein contre les essais répétés (le verrouillage de compte arrive au Sprint 3, US-41)
+app.use('/api/auth', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: config.isProd ? 20 : 200,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { message: 'Trop de tentatives, réessayez dans 15 minutes.' },
+}));
+app.use('/api/auth', require('./routes/session'));       // US-02 Iheb
 app.use('/api/auth', require('./routes/inscription'));   // US-01 Akram
 // ===== FIN DES ROUTES =====
 
