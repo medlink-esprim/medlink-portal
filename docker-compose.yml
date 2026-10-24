@@ -1,0 +1,46 @@
+# Environnement de développement (US-56) : docker compose up --build
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: medlink
+      POSTGRES_USER: medlink
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro   # exécutées au 1er démarrage seulement
+    ports: ["127.0.0.1:5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medlink -d medlink"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    env_file: .env
+    environment:
+      NODE_ENV: development
+    depends_on:
+      db: { condition: service_healthy }
+    ports: ["127.0.0.1:3000:3000"]
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/scripts:/app/scripts
+      - ./backend/tests:/app/tests
+    command: npx nodemon --legacy-watch src/server.js
+
+  web:
+    build: ./frontend
+    environment:
+      API_URL: http://api:3000
+    depends_on: [api]
+    ports: ["127.0.0.1:5173:5173"]
+    volumes:
+      - ./frontend/src:/app/src
+
+  mailpit:
+    image: axllent/mailpit
+    ports: ["127.0.0.1:8025:8025"]   # boîte de réception de test : http://localhost:8025
+
+volumes:
+  dbdata:
