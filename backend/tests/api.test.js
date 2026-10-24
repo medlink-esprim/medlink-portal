@@ -57,3 +57,11 @@ test('US-02 : e-mail inconnu et mauvais mot de passe => réponse identique', asy
   expect(b.status).toBe(401);
   expect(a.body).toEqual(b.body);
 });
+
+test('US-27 : un patient ne peut pas créer de compte => 403', async () => {
+  const login = await request(app).post('/api/auth/login').send({ email, password });
+  const res = await request(app).post('/api/comptes')
+    .set('Cookie', login.headers['set-cookie'])
+    .send({ nom: 'X', prenom: 'Y', email: 'x@y.tn', role: 'PRATICIEN', specialite: 'Cardiologie' });
+  expect(res.status).toBe(403);
+});
