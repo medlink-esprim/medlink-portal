@@ -20,6 +20,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 // ===== ROUTES : chaque user story ajoute sa ligne ici =====
+app.use('/api/auth', require('./routes/inscription'));   // US-01 Akram
 // ===== FIN DES ROUTES =====
 
 // 404 pour toute route /api inconnue
