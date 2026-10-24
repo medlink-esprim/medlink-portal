@@ -31,6 +31,7 @@ app.use('/api/auth', rateLimit({
 }));
 app.use('/api/auth', require('./routes/session'));       // US-02 Iheb
 app.use('/api/auth', require('./routes/inscription'));   // US-01 Akram
+app.use('/api/auth', require('./routes/motDePasse'));    // US-03 Akram
 // ===== FIN DES ROUTES =====
 
 // 404 pour toute route /api inconnue
