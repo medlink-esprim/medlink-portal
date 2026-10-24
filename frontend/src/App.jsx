@@ -6,6 +6,8 @@ import Inscription from './pages/Inscription.jsx'
 import Verification from './pages/Verification.jsx'
 import MotDePasseOublie from './pages/MotDePasseOublie.jsx'
 import Reinitialisation from './pages/Reinitialisation.jsx'
+import Activation from './pages/Activation.jsx'
+import CreationCompte from './pages/CreationCompte.jsx'
 // ===== IMPORTS DES PAGES =====
 
 export default function App() {
@@ -19,6 +21,8 @@ export default function App() {
       <Route path="/verification" element={<Verification />} />                   {/* US-01 */}
       <Route path="/mot-de-passe-oublie" element={<MotDePasseOublie />} />        {/* US-03 */}
       <Route path="/reinitialisation" element={<Reinitialisation />} />           {/* US-03 */}
+      <Route path="/activation" element={<Activation />} />                       {/* US-27 */}
+      <Route path="/back-office/comptes/nouveau" element={<CreationCompte />} />  {/* US-27 */}
       {/* ===== ROUTES DES PAGES ===== */}
       <Route path="*" element={<Navigate to="/connexion" replace />} />
     </Routes>
