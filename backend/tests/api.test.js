@@ -98,3 +98,14 @@ test('US-40 : la déconnexion révoque le jeton de rafraîchissement', async () 
   const replay = await request(app).post('/api/auth/refresh').set('Cookie', refreshCookie);
   expect(replay.status).toBe(401);
 });
+
+test('US-39 : un patient sur une route du back-office => 403 journalisé (TA-2.3)', async () => {
+  const agent = request.agent(app);
+  await agent.post('/api/auth/login').send({ email, password });
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  const res = await agent.get('/api/comptes');
+  expect(res.status).toBe(403);
+  const ligne = JSON.parse(warn.mock.calls.at(-1)[0]);
+  expect(ligne).toMatchObject({ evenement: 'ACCES_REFUSE', role: 'PATIENT', route: '/api/comptes' });
+  warn.mockRestore();
+});
