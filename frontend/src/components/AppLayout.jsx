@@ -16,7 +16,7 @@ const LIBELLES = {
 // ===== MENUS : chaque user story ajoute ses entrées =====
 const MENUS = {
   PATIENT: [['/accueil', 'Tableau de bord']],
-  PRATICIEN: [['/accueil', 'Tableau de bord']],
+  PRATICIEN: [['/accueil', 'Tableau de bord'], ['/praticien/disponibilites', 'Disponibilités']],
   AGENT_ADMIN: [['/accueil', 'Tableau de bord'], ['/back-office/comptes/nouveau', 'Créer un compte']],
   ADMIN: [['/accueil', 'Tableau de bord'], ['/back-office/comptes/nouveau', 'Créer un compte']],
   DIRECTION: [['/accueil', 'Tableau de bord']],

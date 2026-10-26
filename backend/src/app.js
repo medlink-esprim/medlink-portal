@@ -37,6 +37,7 @@ app.use('/api/auth', require('./routes/inscription'));   // US-01 Akram
 app.use('/api/auth', require('./routes/motDePasse'));    // US-03 Akram
 app.use('/api/auth', require('./routes/activation'));    // US-27 Akram
 app.use('/api/comptes', require('./routes/comptes'));    // US-27 Akram
+app.use('/api/disponibilites', require('./routes/disponibilites'));   // US-18 Akram
 // ===== FIN DES ROUTES =====
 
 // 404 pour toute route /api inconnue

@@ -1,5 +1,6 @@
 // US-27 : création des comptes praticien / agent par le back-office.
-// (L'affectation d'un praticien à ses cliniques arrive au Sprint 4, US-29.)
+// Sprint 2 (US-18) : un praticien est affecté à une ou plusieurs cliniques dès sa création
+// (la modification des affectations arrive au Sprint 4, US-29).
 // Montée sur /api/comptes : GET /cliniques, GET /, POST /
 const express = require('express');
 const Joi = require('joi');
@@ -35,12 +36,21 @@ const schema = Joi.object({
   role: Joi.string().valid('PRATICIEN', 'AGENT_ADMIN').required(),
   idClinique: Joi.when('role', { is: 'AGENT_ADMIN', then: Joi.string().guid().required(), otherwise: Joi.forbidden() }),
   specialite: Joi.when('role', { is: 'PRATICIEN', then: Joi.string().trim().max(60).required(), otherwise: Joi.forbidden() }),
+  cliniques: Joi.when('role', {
+    is: 'PRATICIEN',
+    then: Joi.array().items(Joi.string().guid()).min(1).max(10).unique().required(),
+    otherwise: Joi.forbidden(),
+  }),
   numeroOrdre: Joi.when('role', { is: 'PRATICIEN', then: Joi.string().trim().max(20).allow(''), otherwise: Joi.forbidden() }),
   fonction: Joi.when('role', { is: 'AGENT_ADMIN', then: Joi.string().trim().max(60).allow(''), otherwise: Joi.forbidden() }),
 });
 
 router.post('/', validate(schema), async (req, res) => {
   const b = req.body;
+  if (b.role === 'PRATICIEN') {
+    const { rows } = await db.query('SELECT count(*)::int AS n FROM cliniques WHERE id_clinique = ANY($1::uuid[])', [b.cliniques]);
+    if (rows[0].n !== b.cliniques.length) return res.status(422).json({ message: 'Clinique inconnue' });
+  }
   const result = await db.withTransaction(async (client) => {
     const exists = await client.query('SELECT 1 FROM utilisateurs WHERE email = $1', [b.email]);
     if (exists.rowCount) return null;
@@ -57,6 +67,11 @@ router.post('/', validate(schema), async (req, res) => {
       await client.query(
         'INSERT INTO praticiens (id_utilisateur, specialite, numero_ordre) VALUES ($1, $2, $3)',
         [id, b.specialite, b.numeroOrdre || null],
+      );
+      await client.query(
+        `INSERT INTO praticien_clinique (id_praticien, id_clinique)
+         SELECT $1, c.id_clinique FROM cliniques c WHERE c.id_clinique = ANY($2::uuid[])`,
+        [id, b.cliniques],
       );
     } else {
       await client.query(

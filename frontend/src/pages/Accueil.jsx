@@ -4,6 +4,7 @@ import AppLayout, { useUser } from '../components/AppLayout.jsx'
 
 // ===== RACCOURCIS : chaque user story ajoute les siens =====
 const RACCOURCIS = {
+  PRATICIEN: [['/praticien/disponibilites', 'Publier mes disponibilités']],
   AGENT_ADMIN: [['/back-office/comptes/nouveau', 'Créer un compte praticien ou agent']],
   ADMIN: [['/back-office/comptes/nouveau', 'Créer un compte praticien ou agent']],
 }
