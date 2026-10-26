@@ -1,0 +1,44 @@
+# Production sur le VPS (US-57) :
+#   docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+# Seul le port 8080 est publié, et uniquement sur 127.0.0.1 : le Nginx de l'hôte (HTTPS) le relaie.
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: medlink
+      POSTGRES_USER: medlink
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medlink -d medlink"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      TRUST_PROXY: 2          # Nginx de l'hôte + Nginx du conteneur web
+    depends_on:
+      db: { condition: service_healthy }
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    depends_on: [api]
+    ports: ["127.0.0.1:8080:80"]
+
+  mailpit:                     # démo : e-mails visibles via un tunnel SSH, jamais exposés
+    image: axllent/mailpit
+    restart: unless-stopped
+    ports: ["127.0.0.1:8025:8025"]
+
+volumes:
+  dbdata:
