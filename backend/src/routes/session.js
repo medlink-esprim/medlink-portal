@@ -1,12 +1,12 @@
-// US-02 : connexion, déconnexion et session courante.
-// Montée sur /api/auth : POST /login, POST /logout, GET /me
+// US-02 / US-40 : connexion, rafraîchissement, déconnexion et session courante.
+// Montée sur /api/auth : POST /login, POST /refresh, POST /logout, GET /me
 const express = require('express');
 const Joi = require('joi');
 const argon2 = require('argon2');
 const db = require('../db');
 const validate = require('../middleware/validate');
 const { requireAuth } = require('../middleware/auth');
-const { openSession, closeSession } = require('../security/session');
+const { openSession, refreshSession, closeSession, INACTIVITE_MIN } = require('../security/session');
 
 const router = express.Router();
 const INVALID = { message: 'Identifiants invalides' };
@@ -45,17 +45,43 @@ router.post('/login', validate(loginSchema), async (req, res) => {
     return res.status(401).json(INVALID);   // même message dans tous les cas
   }
 
-  openSession(res, { id: user.id_utilisateur, role: user.role, prenom: user.prenom });
+  await openSession(res, { id: user.id_utilisateur, role: user.role, prenom: user.prenom });
   return res.json({ role: user.role, prenom: user.prenom });
 });
 
-router.post('/logout', (req, res) => {
-  closeSession(res);
+// US-40 : nouveau jeton d'accès, tant que la session n'est ni révoquée ni inactive depuis 15 min
+router.post('/refresh', async (req, res) => {
+  const user = await refreshSession(req, res);
+  if (!user) return res.status(401).json({ code: 'SESSION_EXPIREE', message: 'Session expirée, veuillez vous reconnecter' });
+  return res.json(user);
+});
+
+router.post('/logout', async (req, res) => {
+  await closeSession(req, res);
   res.status(204).end();
 });
 
-router.get('/me', requireAuth, (req, res) => {
-  res.json(req.user);
+// Profil affiché dans le menu latéral des espaces connectés
+router.get('/me', requireAuth, async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT u.nom, u.prenom, u.mfa_active, p.numero_dossier, pr.specialite
+       FROM utilisateurs u
+       LEFT JOIN patients p ON p.id_utilisateur = u.id_utilisateur
+       LEFT JOIN praticiens pr ON pr.id_utilisateur = u.id_utilisateur
+      WHERE u.id_utilisateur = $1`,
+    [req.user.id],
+  );
+  const u = rows[0] || {};
+  res.json({
+    id: req.user.id,
+    role: req.user.role,
+    prenom: u.prenom,
+    nom: u.nom,
+    numeroDossier: u.numero_dossier || null,
+    specialite: u.specialite || null,
+    mfaActive: Boolean(u.mfa_active),
+    inactiviteMin: INACTIVITE_MIN,
+  });
 });
 
 module.exports = router;
