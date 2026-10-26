@@ -50,3 +50,35 @@ test('US-18 / US-39 : clinique non affectée => 403 ; patient => 403', async () 
   expect(res.status).toBe(403);
   expect((await agentPatient.get('/api/disponibilites')).status).toBe(403);
 });
+
+// ---------- US-05 / US-06 ----------
+test('US-05 : recherche par spécialité et clinique', async () => {
+  const sousse = await idClinique('Sousse');
+  const res = await agentPatient.get(`/api/praticiens?specialite=Cardiologie&clinique=${sousse}`);
+  expect(res.status).toBe(200);
+  const trouve = res.body.find((p) => p.id_praticien === praticien.id);
+  expect(trouve).toMatchObject({ specialite: 'Cardiologie', villes: 'Sfax, Sousse' });
+  expect(trouve.creneaux_libres).toBeGreaterThanOrEqual(8);
+
+  const tunis = await idClinique('Tunis');
+  const aucun = await agentPatient.get(`/api/praticiens?clinique=${tunis}`);
+  expect(aucun.body.find((p) => p.id_praticien === praticien.id)).toBeUndefined();
+});
+
+test('US-06 / TA-2.7 : créneaux libres triés par date', async () => {
+  const debut = prochainJour(1);
+  const res = await agentPatient.get(`/api/creneaux?praticien=${praticien.id}&debut=${debut}`);
+  expect(res.status).toBe(200);
+  expect(res.body).toHaveLength(8);
+  const dates = res.body.map((c) => new Date(c.debut).getTime());
+  expect(dates).toEqual([...dates].sort((a, b) => a - b));
+  expect(res.body.every((c) => c.statut === 'libre')).toBe(true);
+});
+
+test('US-06 : période de plus de 31 jours => aucun résultat ; praticien => 403', async () => {
+  const debut = prochainJour(1);
+  const fin = new Date(new Date(`${debut}T00:00:00Z`).getTime() + 60 * 86400000).toISOString().slice(0, 10);
+  const res = await agentPatient.get(`/api/creneaux?praticien=${praticien.id}&debut=${debut}&fin=${fin}`);
+  expect(res.body).toHaveLength(0);
+  expect((await agentPraticien.get(`/api/creneaux?praticien=${praticien.id}`)).status).toBe(403);
+});
