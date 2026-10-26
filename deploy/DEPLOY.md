@@ -30,3 +30,14 @@ curl -I https://<domaine>/api/health
 
 ## 5. Voir les e-mails de démonstration (Mailpit)
 Depuis son PC : `ssh -L 8025:localhost:8025 deploy@<IP_VPS>` puis http://localhost:8025
+
+## 6. Appliquer une nouvelle migration SQL (ex. Sprint 2)
+Les fichiers de `db/migrations` ne sont exécutés automatiquement que sur une base **vide**.
+Sur une base existante, appliquer le nouveau fichier une seule fois, après le `git pull` :
+```bash
+cd /opt/medlink && git pull
+docker compose -f docker-compose.prod.yml exec -T db \
+  psql -U medlink -d medlink -v ON_ERROR_STOP=1 < db/migrations/003_sprint2.sql
+docker compose -f docker-compose.prod.yml exec db psql -U medlink -d medlink -c "\dt"   # 12 tables
+```
+Sur un PC de développement, on peut aussi repartir d'une base vide : `docker compose down -v` puis `docker compose up --build`.
