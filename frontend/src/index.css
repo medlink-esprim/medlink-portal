@@ -84,3 +84,9 @@ table { width: 100%; border-collapse: collapse; font-size: .9rem; } td { padding
 .creneau.choisi { background: var(--navy); color: #fff; border-color: var(--navy); }
 .selection { display: flex; justify-content: space-between; align-items: center; gap: 1rem; border-top: 1px solid #EEF0F3; margin-top: 1.2rem; padding-top: 1rem; }
 @media (max-width: 860px) { .filtres, .two-cols-rdv { grid-template-columns: 1fr; } }
+/* US-07 : confirmation */
+.recap td { padding: .6rem .3rem; } .recap td:first-child { color: var(--muted); width: 35%; }
+textarea { width: 100%; padding: .6rem .7rem; border: 1px solid var(--line); border-radius: 7px; font: inherit; resize: vertical; }
+.actions { display: flex; gap: .8rem; flex-wrap: wrap; margin-top: 1rem; }
+.actions .btn-primary, .actions .btn-secondary { height: 2.6rem; }
+.btn-link { display: inline-flex; align-items: center; justify-content: center; }
