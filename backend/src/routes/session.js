@@ -7,6 +7,7 @@ const db = require('../db');
 const validate = require('../middleware/validate');
 const { requireAuth } = require('../middleware/auth');
 const { openSession, refreshSession, closeSession, INACTIVITE_MIN } = require('../security/session');
+const { ROLES_MFA, poserJetonMfa } = require('../security/mfa');
 
 const router = express.Router();
 const INVALID = { message: 'Identifiants invalides' };
@@ -27,7 +28,7 @@ const loginSchema = Joi.object({
 router.post('/login', validate(loginSchema), async (req, res) => {
   const { email, password } = req.body;
   const { rows } = await db.query(
-    `SELECT u.id_utilisateur, u.prenom, u.mot_de_passe_hash, u.statut, u.email_verifie, r.code AS role
+    `SELECT u.id_utilisateur, u.prenom, u.mot_de_passe_hash, u.statut, u.email_verifie, u.mfa_active, r.code AS role
        FROM utilisateurs u JOIN roles r USING (id_role)
       WHERE u.email = $1`,
     [email],
@@ -43,6 +44,13 @@ router.post('/login', validate(loginSchema), async (req, res) => {
   }
   if (!user || !passwordOk || user.statut !== 'actif' || !user.email_verifie) {
     return res.status(401).json(INVALID);   // même message dans tous les cas
+  }
+
+  // US-17 / US-34 : praticiens et administrateurs doivent encore fournir le code TOTP ;
+  // aucune session n'est ouverte à ce stade.
+  if (ROLES_MFA.includes(user.role)) {
+    poserJetonMfa(res, user.id_utilisateur, user.mfa_active ? 'verification' : 'enrolement');
+    return res.json(user.mfa_active ? { mfaRequis: true } : { mfaEnrolement: true });
   }
 
   await openSession(res, { id: user.id_utilisateur, role: user.role, prenom: user.prenom });

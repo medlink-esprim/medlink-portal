@@ -1,5 +1,5 @@
 // US-02 / US-40 : tableau de bord après connexion (raccourcis selon le rôle)
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import AppLayout, { useUser } from '../components/AppLayout.jsx'
 
 // ===== RACCOURCIS : chaque user story ajoute les siens =====
@@ -10,9 +10,14 @@ const RACCOURCIS = {
 
 function Contenu() {
   const user = useUser()
+  const { state } = useLocation()
   const liens = RACCOURCIS[user.role] || []
+  const restants = state?.codesSecoursRestants
   return (
     <div className="cards">
+      {restants !== undefined && (
+        <div className="alert alert-info">Connexion avec un code de secours : il vous en reste {restants}.</div>
+      )}
       {liens.map(([to, label]) => (
         <Link key={to} className="card card-link" to={to}>{label} →</Link>
       ))}
