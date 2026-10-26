@@ -27,6 +27,8 @@ app.use('/api/auth', rateLimit({
   limit: config.isProd ? 20 : 200,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
+  // US-40 : la session courante, le rafraîchissement et la déconnexion ne comptent pas comme des essais
+  skip: (req) => ['/me', '/refresh', '/logout'].includes(req.path),
   message: { message: 'Trop de tentatives, réessayez dans 15 minutes.' },
 }));
 app.use('/api/auth', require('./routes/session'));       // US-02 Iheb

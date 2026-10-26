@@ -1,12 +1,14 @@
 // US-02 : connexion (message d'erreur générique, cf. maquette)
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api.js'
 import AuthLayout from '../components/AuthLayout.jsx'
 import Alert from '../components/Alert.jsx'
 
 export default function Connexion() {
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const expiree = params.get('expiree') === '1'   // US-40 : retour après 15 min d'inactivité
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -23,6 +25,7 @@ export default function Connexion() {
 
   return (
     <AuthLayout title="Connexion" subtitle="Accédez à votre espace sécurisé.">
+      {expiree && <Alert type="info">Votre session a expiré après 15 minutes d'inactivité. Veuillez vous reconnecter.</Alert>}
       <form onSubmit={submit}>
         <label htmlFor="email">Adresse e-mail</label>
         <input id="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />

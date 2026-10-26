@@ -7,6 +7,7 @@ const db = require('../db');
 const validate = require('../middleware/validate');
 const { checkPassword } = require('../security/passwordPolicy');
 const { issueToken, findValidToken, consumeToken } = require('../security/tokens');
+const { revokeAllSessions } = require('../security/session');
 const mailer = require('../services/mailer');
 
 const router = express.Router();
@@ -56,6 +57,7 @@ router.post('/reinitialisation', validate(resetSchema), async (req, res) => {
     await consumeToken(client, token, 'reinitialisation');
     const hash = await argon2.hash(password, { type: argon2.argon2id });
     await client.query('UPDATE utilisateurs SET mot_de_passe_hash = $1 WHERE id_utilisateur = $2', [hash, found.id_utilisateur]);
+    await revokeAllSessions(client, found.id_utilisateur);   // US-40 : les sessions ouvertes sont fermées
     return { status: 200, body: { message: 'Mot de passe modifié' } };
   });
   return res.status(outcome.status).json(outcome.body);

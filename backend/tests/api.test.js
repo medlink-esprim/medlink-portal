@@ -65,3 +65,36 @@ test('US-27 : un patient ne peut pas créer de compte => 403', async () => {
     .send({ nom: 'X', prenom: 'Y', email: 'x@y.tn', role: 'PRATICIEN', specialite: 'Cardiologie' });
   expect(res.status).toBe(403);
 });
+
+// ---------------- Sprint 2 ----------------
+
+test('US-40 : refresh puis expiration après 15 min d\'inactivité (TA-2.2)', async () => {
+  const agent = request.agent(app);
+  const login = await agent.post('/api/auth/login').send({ email, password });
+  expect(login.status).toBe(200);
+  expect(login.headers['set-cookie'].join(';')).toMatch(/medlink_refresh=.*Path=\/api\/auth.*HttpOnly/);
+
+  expect((await agent.get('/api/auth/me')).status).toBe(200);
+  expect((await agent.post('/api/auth/refresh')).status).toBe(200);
+
+  // on simule 16 minutes sans aucune requête
+  await db.query(
+    `UPDATE sessions SET derniere_activite = now() - interval '16 minutes'
+      WHERE id_utilisateur = (SELECT id_utilisateur FROM utilisateurs WHERE email = $1)`,
+    [email],
+  );
+  const me = await agent.get('/api/auth/me');
+  expect(me.status).toBe(401);
+  expect(me.body.code).toBe('SESSION_EXPIREE');
+  expect((await agent.post('/api/auth/refresh')).status).toBe(401);
+});
+
+test('US-40 : la déconnexion révoque le jeton de rafraîchissement', async () => {
+  const agent = request.agent(app);
+  const login = await agent.post('/api/auth/login').send({ email, password });
+  const refreshCookie = login.headers['set-cookie'].find((c) => c.startsWith('medlink_refresh=')).split(';')[0];
+  expect((await agent.post('/api/auth/logout')).status).toBe(204);
+  // même avec l'ancien cookie conservé par un attaquant, la session ne peut plus être prolongée
+  const replay = await request(app).post('/api/auth/refresh').set('Cookie', refreshCookie);
+  expect(replay.status).toBe(401);
+});
