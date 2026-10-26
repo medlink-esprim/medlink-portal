@@ -48,3 +48,12 @@ table { width: 100%; border-collapse: collapse; font-size: .9rem; } td { padding
 .card-link { color: var(--navy); }
 .card-link:hover { border-color: var(--navy); }
 @media (max-width: 860px) { .app { grid-template-columns: 1fr; } .sidebar-foot { margin-top: 1rem; } }
+/* US-17 / US-34 : vérification en deux étapes */
+.code6 { display: flex; gap: .5rem; justify-content: center; margin: 1.2rem 0 .4rem; }
+.code6 input { width: 3rem; height: 3.6rem; text-align: center; font-size: 1.6rem; font-weight: 700; color: var(--navy); padding: 0; }
+.link { background: none; border: 0; color: var(--crimson); font-weight: 600; padding: 0; margin-top: 1rem; }
+.qr { display: block; margin: .6rem auto; border: 1px solid var(--line); border-radius: 8px; }
+.secret { word-break: break-all; font-size: .8rem; }
+.steps { padding-left: 1.2rem; font-size: .9rem; }
+.codes-secours { list-style: none; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; margin: 1rem 0; }
+.codes-secours code { display: block; text-align: center; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: .4rem; font-size: 1rem; letter-spacing: .05em; }

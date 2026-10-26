@@ -19,6 +19,8 @@ export default function Connexion() {
     setBusy(true); setError('')
     const res = await api('/auth/login', { method: 'POST', body: { email, password } })
     setBusy(false)
+    if (res.ok && res.data.mfaRequis) return navigate('/connexion/verification')     // US-17, US-34
+    if (res.ok && res.data.mfaEnrolement) return navigate('/connexion/enrolement')
     if (res.ok) return navigate('/accueil')
     setError(res.data?.message || 'Connexion impossible')
   }

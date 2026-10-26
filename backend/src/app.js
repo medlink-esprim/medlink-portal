@@ -32,6 +32,7 @@ app.use('/api/auth', rateLimit({
   message: { message: 'Trop de tentatives, réessayez dans 15 minutes.' },
 }));
 app.use('/api/auth', require('./routes/session'));       // US-02 Iheb
+app.use('/api/auth', require('./routes/mfa'));           // US-17, US-34 Jasser
 app.use('/api/auth', require('./routes/inscription'));   // US-01 Akram
 app.use('/api/auth', require('./routes/motDePasse'));    // US-03 Akram
 app.use('/api/auth', require('./routes/activation'));    // US-27 Akram
