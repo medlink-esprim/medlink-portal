@@ -82,3 +82,49 @@ test('US-06 : période de plus de 31 jours => aucun résultat ; praticien => 403
   expect(res.body).toHaveLength(0);
   expect((await agentPraticien.get(`/api/creneaux?praticien=${praticien.id}`)).status).toBe(403);
 });
+
+// ---------- US-07 ----------
+async function premierCreneauLibre() {
+  const res = await agentPatient.get(`/api/creneaux?praticien=${praticien.id}&debut=${prochainJour(1)}`);
+  return res.body.find((c) => c.statut === 'libre');
+}
+
+test('US-07 : réservation, motif chiffré en base (TA-2.4), créneau retiré', async () => {
+  const c = await premierCreneauLibre();
+  const res = await agentPatient.post('/api/rendez-vous').send({ idCreneau: c.id_creneau, motif: 'Essoufflement à l\'effort' });
+  expect(res.status).toBe(201);
+
+  const { rows } = await db.query('SELECT motif_chiffre, statut, origine FROM rendez_vous WHERE id_rdv = $1', [res.body.idRdv]);
+  expect(rows[0]).toMatchObject({ statut: 'planifie', origine: 'en_ligne' });
+  expect(rows[0].motif_chiffre.toString('latin1')).not.toContain('Essoufflement');
+
+  const detail = await agentPatient.get(`/api/rendez-vous/${res.body.idRdv}`);
+  expect(detail.body.motif).toBe('Essoufflement à l\'effort');
+  const praticienVoit = await agentPraticien.get(`/api/rendez-vous/${res.body.idRdv}`);
+  expect(praticienVoit.status).toBe(200);
+
+  const apres = await agentPatient.get(`/api/creneaux?praticien=${praticien.id}&debut=${prochainJour(1)}`);
+  expect(apres.body.find((x) => x.id_creneau === c.id_creneau).statut).toBe('reserve');
+});
+
+test('TA-2.6 : deux réservations simultanées du même créneau => une seule réussit', async () => {
+  const c = await premierCreneauLibre();
+  const autre = await connecter(autrePatient);
+  const [a, b] = await Promise.all([
+    agentPatient.post('/api/rendez-vous').send({ idCreneau: c.id_creneau }),
+    autre.post('/api/rendez-vous').send({ idCreneau: c.id_creneau }),
+  ]);
+  expect([a.status, b.status].sort()).toEqual([201, 409]);
+  const { rows } = await db.query('SELECT count(*)::int AS n FROM rendez_vous WHERE id_creneau = $1', [c.id_creneau]);
+  expect(rows[0].n).toBe(1);
+});
+
+test('TA-2.3 : le rendez-vous d\'un autre patient => 403 journalisé', async () => {
+  const { rows } = await db.query('SELECT id_rdv FROM rendez_vous WHERE id_patient = $1 LIMIT 1', [patient.id]);
+  const autre = await connecter(autrePatient);
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  const res = await autre.get(`/api/rendez-vous/${rows[0].id_rdv}`);
+  expect(res.status).toBe(403);
+  expect(JSON.parse(warn.mock.calls.at(-1)[0]).evenement).toBe('ACCES_REFUSE');
+  warn.mockRestore();
+});
