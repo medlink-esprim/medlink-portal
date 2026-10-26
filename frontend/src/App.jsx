@@ -10,6 +10,7 @@ import Activation from './pages/Activation.jsx'
 import CreationCompte from './pages/CreationCompte.jsx'
 import VerificationMfa from './pages/VerificationMfa.jsx'
 import EnrolementMfa from './pages/EnrolementMfa.jsx'
+import Disponibilites from './pages/Disponibilites.jsx'
 // ===== IMPORTS DES PAGES =====
 
 export default function App() {
@@ -27,6 +28,7 @@ export default function App() {
       <Route path="/back-office/comptes/nouveau" element={<CreationCompte />} />  {/* US-27 */}
       <Route path="/connexion/verification" element={<VerificationMfa />} />      {/* US-17, US-34 */}
       <Route path="/connexion/enrolement" element={<EnrolementMfa />} />          {/* US-17, US-34 */}
+      <Route path="/praticien/disponibilites" element={<Disponibilites />} />     {/* US-18 */}
       {/* ===== ROUTES DES PAGES ===== */}
       <Route path="*" element={<Navigate to="/connexion" replace />} />
     </Routes>

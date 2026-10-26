@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
 import Alert from '../components/Alert.jsx'
 
-const EMPTY = { nom: '', prenom: '', email: '', telephone: '', role: 'PRATICIEN', specialite: '', numeroOrdre: '', idClinique: '', fonction: '' }
+const EMPTY = { nom: '', prenom: '', email: '', telephone: '', role: 'PRATICIEN', specialite: '', numeroOrdre: '', idClinique: '', fonction: '', cliniques: [] }
 
 export default function CreationCompte() {
   const navigate = useNavigate()
@@ -13,6 +13,8 @@ export default function CreationCompte() {
   const [recents, setRecents] = useState([])
   const [message, setMessage] = useState(null)
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
+  // US-18 : cliniques où exerce le praticien (il n'y publie ses disponibilités que là)
+  const basculer = (id) => setForm({ ...form, cliniques: form.cliniques.includes(id) ? form.cliniques.filter((c) => c !== id) : [...form.cliniques, id] })
 
   async function load() {
     const [c, r] = await Promise.all([api('/comptes/cliniques'), api('/comptes')])
@@ -25,7 +27,7 @@ export default function CreationCompte() {
   async function submit(e) {
     e.preventDefault()
     const body = { nom: form.nom, prenom: form.prenom, email: form.email, telephone: form.telephone, role: form.role }
-    if (form.role === 'PRATICIEN') Object.assign(body, { specialite: form.specialite, numeroOrdre: form.numeroOrdre })
+    if (form.role === 'PRATICIEN') Object.assign(body, { specialite: form.specialite, numeroOrdre: form.numeroOrdre, cliniques: form.cliniques })
     else Object.assign(body, { idClinique: form.idClinique, fonction: form.fonction })
     const res = await api('/comptes', { method: 'POST', body })
     if (res.status === 201) { setForm(EMPTY); load() }
@@ -56,7 +58,7 @@ export default function CreationCompte() {
             <option value="PRATICIEN">Praticien</option>
             <option value="AGENT_ADMIN">Agent administratif</option>
           </select>
-          {praticien ? (
+          {praticien && (
             <div className="row">
               <div><label htmlFor="specialite">Spécialité</label>
                 <select id="specialite" required value={form.specialite} onChange={set('specialite')}>
@@ -65,7 +67,21 @@ export default function CreationCompte() {
                 </select></div>
               <div><label htmlFor="ordre">N° d'inscription à l'Ordre</label><input id="ordre" value={form.numeroOrdre} onChange={set('numeroOrdre')} /></div>
             </div>
-          ) : (
+          )}
+          {praticien && (
+            <fieldset className="checks-field">
+              <label>Cliniques d'exercice</label>
+              <div className="checks">
+                {cliniques.map((c) => (
+                  <label key={c.id_clinique}>
+                    <input type="checkbox" checked={form.cliniques.includes(c.id_clinique)} onChange={() => basculer(c.id_clinique)} />
+                    {c.nom}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          {!praticien && (
             <div className="row">
               <div><label htmlFor="clinique">Clinique</label>
                 <select id="clinique" required value={form.idClinique} onChange={set('idClinique')}>
@@ -76,7 +92,7 @@ export default function CreationCompte() {
             </div>
           )}
           {message && <Alert type={message.type}>{message.text}</Alert>}
-          <button className="btn-primary">Créer et envoyer l'invitation</button>
+          <button className="btn-primary" disabled={praticien && form.cliniques.length === 0}>Créer et envoyer l'invitation</button>
         </form>
         <aside className="card">
           <h2>Derniers comptes créés</h2>
