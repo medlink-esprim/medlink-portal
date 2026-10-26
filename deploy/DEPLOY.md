@@ -41,3 +41,24 @@ docker compose -f docker-compose.prod.yml exec -T db \
 docker compose -f docker-compose.prod.yml exec db psql -U medlink -d medlink -c "\dt"   # 12 tables
 ```
 Sur un PC de développement, on peut aussi repartir d'une base vide : `docker compose down -v` puis `docker compose up --build`.
+
+## 7. HTTPS : TLS 1.2 minimum, TLS 1.3 privilégié, HSTS (US-44)
+Installer la configuration (VM : `nginx-medlink-vm.conf` ; VPS avec domaine : `nginx-medlink.conf`) :
+```bash
+cd /opt/medlink && git pull
+sudo cp deploy/nginx-medlink-vm.conf /etc/nginx/sites-available/medlink
+sudo nginx -t && sudo systemctl reload nginx
+docker compose -f docker-compose.prod.yml --env-file .env up -d --build web   # en-têtes de sécurité des pages
+```
+Vérifier (TA-2.5), depuis la VM :
+```bash
+curl -sI -H 'Host: medlink.local' http://127.0.0.1 | head -3                     # 301 vers https://
+curl -skI --resolve medlink.local:443:127.0.0.1 https://medlink.local | grep -i strict-transport
+for v in tls1 tls1_1 tls1_2 tls1_3; do
+  printf '%-7s : ' $v
+  echo | openssl s_client -connect 127.0.0.1:443 -servername medlink.local -$v -cipher 'DEFAULT:@SECLEVEL=0' 2>/dev/null \
+    | grep -m1 'Cipher is'
+done
+# attendu : tls1 et tls1_1 -> « New, (NONE), Cipher is (NONE) » (refusés)
+#           tls1_2 -> « New, TLSv1.2, Cipher is ECDHE-… »   tls1_3 -> « New, TLSv1.3, Cipher is TLS_AES_… »
+```
