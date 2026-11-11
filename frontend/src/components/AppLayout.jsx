@@ -16,7 +16,7 @@ const LIBELLES = {
 // ===== MENUS : chaque user story ajoute ses entrées [chemin, libellé, permission requise] =====
 // US-33 : une entrée n'est affichée que si le rôle a reçu la permission correspondante.
 const MENUS = {
-  PATIENT: [['/accueil', 'Tableau de bord'], ['/patient/rendez-vous/nouveau', 'Prendre rendez-vous', 'RDV_PRENDRE'], ['/patient/rendez-vous', 'Mes rendez-vous', 'RDV_PRENDRE']],
+  PATIENT: [['/accueil', 'Tableau de bord'], ['/patient/rendez-vous/nouveau', 'Prendre rendez-vous', 'RDV_PRENDRE'], ['/patient/rendez-vous', 'Mes rendez-vous', 'RDV_PRENDRE'], ['/patient/profil', 'Mon profil']],
   PRATICIEN: [['/accueil', 'Tableau de bord'], ['/praticien/disponibilites', 'Disponibilités', 'DISPONIBILITES_GERER']],
   AGENT_ADMIN: [['/accueil', 'Tableau de bord'], ['/back-office/comptes/nouveau', 'Créer un compte', 'COMPTES_GERER']],
   ADMIN: [['/accueil', 'Tableau de bord'], ['/back-office/comptes/nouveau', 'Créer un compte', 'COMPTES_GERER'], ['/admin/roles', 'Rôles et droits', 'ROLES_GERER']],
