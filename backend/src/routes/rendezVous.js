@@ -1,14 +1,21 @@
 // US-07 : réservation transactionnelle d'un créneau.
-// Montée sur /api/rendez-vous : POST / (patient), GET /:id (patient concerné ou praticien concerné)
+// US-09 : annulation jusqu'à 24 h avant le rendez-vous.
+// Montée sur /api/rendez-vous : POST / (patient), GET /:id (patient concerné ou praticien concerné),
+//   PATCH /:id/annulation (patient concerné)
 const express = require('express');
 const Joi = require('joi');
 const db = require('../db');
 const validate = require('../middleware/validate');
 const { requireAuth, requirePermission, refuser } = require('../middleware/auth');
 const { chiffrer, dechiffrer } = require('../security/chiffrement');
-const { notifierPatient } = require('../services/notifications');
+const { notifierPatient, notifierPraticien } = require('../services/notifications');
 
 const router = express.Router();
+const DELAI_H = 24;   // annulation et report possibles jusqu'à 24 h avant le rendez-vous
+const TROP_TARD = { message: "Moins de 24 heures avant le rendez-vous : la modification en ligne n'est plus possible. Contactez votre clinique." };
+const NON_MODIFIABLE = { message: 'Ce rendez-vous ne peut plus être modifié (déjà annulé, reporté ou passé).' };
+const estUuid = (v) => !Joi.string().guid().validate(v).error;
+
 const PRIS = { message: "Ce créneau vient d'être réservé par un autre patient. Choisissez un autre créneau." };
 
 const schema = Joi.object({
@@ -68,6 +75,34 @@ router.get('/:id', requireAuth, async (req, res) => {
   }
   const { motif_chiffre: motifChiffre, id_patient: idPatient, ...reste } = r;
   return res.json({ ...reste, motif: dechiffrer(motifChiffre, idPatient) });
+});
+
+// US-09 : annulation par le patient. Le créneau redevient réservable, patient et praticien sont prévenus.
+router.patch('/:id/annulation', requirePermission('RDV_PRENDRE'), async (req, res) => {
+  if (!estUuid(req.params.id)) return res.status(404).json({ message: 'Rendez-vous introuvable' });
+  const outcome = await db.withTransaction(async (client) => {
+    const { rows: [r] } = await client.query(
+      `SELECT r.id_rdv, r.id_patient, r.statut, r.id_creneau,
+              cr.debut - now() >= make_interval(hours => $2) AS delai_ok
+         FROM rendez_vous r JOIN creneaux cr USING (id_creneau)
+        WHERE r.id_rdv = $1
+          FOR UPDATE OF r, cr`,
+      [req.params.id, DELAI_H],
+    );
+    if (!r) return { status: 404, body: { message: 'Rendez-vous introuvable' } };
+    if (r.id_patient !== req.user.id) return { refus: true };   // US-39 : contrôle de propriété
+    if (r.statut !== 'planifie') return { status: 409, body: NON_MODIFIABLE };
+    if (!r.delai_ok) return { status: 422, body: TROP_TARD };
+    await client.query("UPDATE rendez_vous SET statut = 'annule', date_annulation = now() WHERE id_rdv = $1", [r.id_rdv]);
+    await client.query("UPDATE creneaux SET statut = 'libre' WHERE id_creneau = $1", [r.id_creneau]);
+    return { status: 200, body: { message: 'Rendez-vous annulé' } };
+  });
+  if (outcome.refus) return refuser(req, res, `annulation du rendez-vous ${req.params.id} d'un autre patient`);
+  if (outcome.status === 200) {
+    await notifierPatient(req.params.id, 'annulation');
+    await notifierPraticien(req.params.id, 'annulation');
+  }
+  return res.status(outcome.status).json(outcome.body);
 });
 
 module.exports = router;
