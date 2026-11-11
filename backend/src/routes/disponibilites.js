@@ -5,10 +5,10 @@ const express = require('express');
 const Joi = require('joi');
 const db = require('../db');
 const validate = require('../middleware/validate');
-const { requireRole, refuser } = require('../middleware/auth');
+const { requirePermission, refuser } = require('../middleware/auth');
 
 const router = express.Router();
-router.use(requireRole('PRATICIEN'));   // US-39 : toutes ces routes sont réservées aux praticiens
+router.use(requirePermission('DISPONIBILITES_GERER'));   // US-39 : toutes ces routes sont réservées aux praticiens
 
 const dateIso = Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).custom((v, helpers) => (
   new Date(`${v}T00:00:00Z`).toISOString().startsWith(v) ? v : helpers.error('any.invalid')

@@ -44,6 +44,14 @@ async function creerPraticien(specialite = 'Cardiologie', villes = ['Sousse'], p
   return u;
 }
 
+// Administrateur du portail avec MFA déjà activé (US-34)
+async function creerAdmin(prenom = 'Sami', nom = 'Bouazizi') {
+  const u = await creerUtilisateur('ADMIN', prenom, nom);
+  u.secret = genererSecret();
+  await db.query('UPDATE utilisateurs SET mfa_active = true, mfa_secret_chiffre = $1 WHERE id_utilisateur = $2', [chiffrer(u.secret, u.id), u.id]);
+  return u;
+}
+
 // Renvoie un agent Supertest connecté (avec le code TOTP pour un praticien)
 async function connecter(u) {
   const agent = request.agent(app);
@@ -71,4 +79,4 @@ async function nettoyer(...comptes) {
   await db.query('DELETE FROM utilisateurs WHERE id_utilisateur = ANY($1::uuid[])', [ids]);
 }
 
-module.exports = { app, db, creerPatient, creerPraticien, connecter, idClinique, prochainJour, nettoyer };
+module.exports = { app, db, creerPatient, creerPraticien, creerAdmin, connecter, idClinique, prochainJour, nettoyer };

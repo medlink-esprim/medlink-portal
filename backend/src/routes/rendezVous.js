@@ -4,7 +4,7 @@ const express = require('express');
 const Joi = require('joi');
 const db = require('../db');
 const validate = require('../middleware/validate');
-const { requireAuth, requireRole, refuser } = require('../middleware/auth');
+const { requireAuth, requirePermission, refuser } = require('../middleware/auth');
 const { chiffrer, dechiffrer } = require('../security/chiffrement');
 
 const router = express.Router();
@@ -15,7 +15,7 @@ const schema = Joi.object({
   motif: Joi.string().trim().max(500).allow(''),
 });
 
-router.post('/', requireRole('PATIENT'), validate(schema), async (req, res) => {
+router.post('/', requirePermission('RDV_PRENDRE'), validate(schema), async (req, res) => {
   const idPatient = req.user.id;   // extrait du jeton, jamais du corps : impossible de réserver au nom d'un autre
   try {
     const outcome = await db.withTransaction(async (client) => {

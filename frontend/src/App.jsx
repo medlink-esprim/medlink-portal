@@ -13,6 +13,7 @@ import EnrolementMfa from './pages/EnrolementMfa.jsx'
 import Disponibilites from './pages/Disponibilites.jsx'
 import PrendreRendezVous from './pages/PrendreRendezVous.jsx'
 import ConfirmerRendezVous from './pages/ConfirmerRendezVous.jsx'
+import RolesDroits from './pages/RolesDroits.jsx'
 // ===== IMPORTS DES PAGES =====
 
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
       <Route path="/praticien/disponibilites" element={<Disponibilites />} />     {/* US-18 */}
       <Route path="/patient/rendez-vous/nouveau" element={<PrendreRendezVous />} />{/* US-05, US-06 */}
       <Route path="/patient/rendez-vous/confirmation" element={<ConfirmerRendezVous />} />{/* US-07 */}
+      <Route path="/admin/roles" element={<RolesDroits />} />                     {/* US-33 */}
       {/* ===== ROUTES DES PAGES ===== */}
       <Route path="*" element={<Navigate to="/connexion" replace />} />
     </Routes>
