@@ -1,19 +1,25 @@
 // US-01 : inscription d'un patient (+ règles du mot de passe en direct, US-42)
-import { useState } from 'react'
+// US-04 : case de consentement obligatoire, liée à la version de la politique en vigueur
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api.js'
 import AuthLayout from '../components/AuthLayout.jsx'
 import Alert from '../components/Alert.jsx'
 import PasswordRules, { passwordIsValid } from '../components/PasswordRules.jsx'
 
-const EMPTY = { nom: '', prenom: '', email: '', telephone: '', password: '' }
+const EMPTY = { nom: '', prenom: '', email: '', telephone: '', password: '', consentement: false }
 
 export default function Inscription() {
   const [form, setForm] = useState(EMPTY)
   const [serverRules, setServerRules] = useState([])
   const [message, setMessage] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [version, setVersion] = useState('')
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
+
+  useEffect(() => {
+    api('/auth/politique').then((res) => res.ok && setVersion(res.data.version))
+  }, [])
 
   async function submit(e) {
     e.preventDefault()
@@ -39,8 +45,15 @@ export default function Inscription() {
         <label htmlFor="password">Mot de passe</label>
         <input id="password" type="password" autoComplete="new-password" required value={form.password} onChange={set('password')} />
         <PasswordRules password={form.password} serverErrors={serverRules} />
+        <label className="consentement">
+          <input type="checkbox" required checked={form.consentement} onChange={(e) => setForm({ ...form, consentement: e.target.checked })} />
+          <span>
+            J'ai lu la <Link to="/politique-confidentialite" target="_blank" rel="noopener">politique de protection des données</Link>
+            {version && ` (version ${version})`} et j'accepte que MedLink traite mes données de santé pour gérer mes rendez-vous et mon dossier.
+          </span>
+        </label>
         {message && <Alert type={message.type}>{message.text}</Alert>}
-        <button className="btn-primary" disabled={busy || !passwordIsValid(form.password)}>Créer mon compte</button>
+        <button className="btn-primary" disabled={busy || !passwordIsValid(form.password) || !form.consentement}>Créer mon compte</button>
       </form>
       <p className="center muted">Déjà inscrit ? <Link to="/connexion">Se connecter</Link></p>
     </AuthLayout>
