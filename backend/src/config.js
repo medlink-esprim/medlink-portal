@@ -39,6 +39,7 @@ if (!cles.has(active)) {
 
 module.exports = {
   chiffrement: { cles, active },
+  rappelsActifs: process.env.RAPPELS_ACTIFS !== 'false',   // US-48
   port: Number(process.env.PORT || 3000),
   isProd: process.env.NODE_ENV === 'production',
   databaseUrl: process.env.DATABASE_URL,
