@@ -194,3 +194,35 @@ test('US-11 : « Mes rendez-vous » liste uniquement les rendez-vous du patient,
   const sesRdv = (await autre.get('/api/patients/moi/rendez-vous')).body;
   expect(sesRdv.every((r) => !rows.some((x) => x.id_rdv === r.id_rdv))).toBe(true);
 });
+
+test('US-10 / TA-3.4 : report => ancien créneau libéré, nouveau rendez-vous lié, praticien prévenu', async () => {
+  const { idRdv, creneau } = await reserver(agentPatient);
+  const debut = new Date(new Date(`${prochainJour(1)}T00:00:00Z`).getTime() + 7 * 86400000).toISOString().slice(0, 10);
+  const libres = (await agentPatient.get(`/api/creneaux?praticien=${praticien.id}&debut=${debut}`)).body.filter((c) => c.statut === 'libre');
+  const cible = libres[0];
+
+  expect((await agentPatient.patch(`/api/rendez-vous/${idRdv}/report`).send({ idCreneau: creneau.id_creneau })).status).toBe(422);
+  const res = await agentPatient.patch(`/api/rendez-vous/${idRdv}/report`).send({ idCreneau: cible.id_creneau });
+  expect(res.status).toBe(200);
+  const nouveau = res.body.idRdv;
+
+  const { rows } = await db.query(
+    `SELECT r.id_rdv, r.statut, r.id_rdv_origine, c.statut AS creneau
+       FROM rendez_vous r JOIN creneaux c USING (id_creneau) WHERE r.id_rdv = ANY($1::uuid[])`,
+    [[idRdv, nouveau]],
+  );
+  const ancien = rows.find((r) => r.id_rdv === idRdv);
+  const neuf = rows.find((r) => r.id_rdv === nouveau);
+  expect(ancien).toMatchObject({ statut: 'reporte', creneau: 'libre' });
+  expect(neuf).toMatchObject({ statut: 'planifie', creneau: 'reserve', id_rdv_origine: idRdv });
+
+  // le motif chiffré suit le rendez-vous ; patient et praticien sont prévenus
+  expect((await agentPatient.get(`/api/rendez-vous/${nouveau}`)).body.motif).toBe('Contrôle');
+  const { rows: n } = await db.query('SELECT type FROM notifications WHERE id_rdv = $1 ORDER BY type::text', [nouveau]);
+  expect(n.map((x) => x.type)).toEqual(['modification', 'alerte'].sort());
+
+  // l'ancien rendez-vous ne peut plus être reporté, et un créneau déjà pris est refusé
+  expect((await agentPatient.patch(`/api/rendez-vous/${idRdv}/report`).send({ idCreneau: libres[1].id_creneau })).status).toBe(409);
+  const { idRdv: autreRdv } = await reserver(agentPatient);
+  expect((await agentPatient.patch(`/api/rendez-vous/${autreRdv}/report`).send({ idCreneau: cible.id_creneau })).status).toBe(409);
+});

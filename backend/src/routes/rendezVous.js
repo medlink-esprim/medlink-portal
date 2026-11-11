@@ -1,7 +1,8 @@
 // US-07 : réservation transactionnelle d'un créneau.
 // US-09 : annulation jusqu'à 24 h avant le rendez-vous.
+// US-10 : report sur un autre créneau du même praticien, dans une seule transaction.
 // Montée sur /api/rendez-vous : POST / (patient), GET /:id (patient concerné ou praticien concerné),
-//   PATCH /:id/annulation (patient concerné)
+//   PATCH /:id/annulation et PATCH /:id/report (patient concerné)
 const express = require('express');
 const Joi = require('joi');
 const db = require('../db');
@@ -103,6 +104,64 @@ router.patch('/:id/annulation', requirePermission('RDV_PRENDRE'), async (req, re
     await notifierPraticien(req.params.id, 'annulation');
   }
   return res.status(outcome.status).json(outcome.body);
+});
+
+// US-10 : report. L'ancien créneau n'est libéré que si le nouveau a bien été verrouillé :
+// le patient ne peut pas perdre son rendez-vous sans en obtenir un autre.
+const reportSchema = Joi.object({ idCreneau: Joi.string().guid().required() });
+
+router.patch('/:id/report', requirePermission('RDV_PRENDRE'), validate(reportSchema), async (req, res) => {
+  if (!estUuid(req.params.id)) return res.status(404).json({ message: 'Rendez-vous introuvable' });
+  try {
+    const outcome = await db.withTransaction(async (client) => {
+      const { rows: [r] } = await client.query(
+        `SELECT r.id_rdv, r.id_patient, r.statut, r.id_creneau, r.motif_chiffre, p.id_praticien,
+                cr.debut - now() >= make_interval(hours => $2) AS delai_ok
+           FROM rendez_vous r JOIN creneaux cr USING (id_creneau) JOIN plages_disponibilite p USING (id_plage)
+          WHERE r.id_rdv = $1
+            FOR UPDATE OF r`,
+        [req.params.id, DELAI_H],
+      );
+      if (!r) return { status: 404, body: { message: 'Rendez-vous introuvable' } };
+      if (r.id_patient !== req.user.id) return { refus: true };   // US-39 : contrôle de propriété
+      if (r.statut !== 'planifie') return { status: 409, body: NON_MODIFIABLE };
+      if (!r.delai_ok) return { status: 422, body: TROP_TARD };
+      if (req.body.idCreneau === r.id_creneau) return { status: 422, body: { message: 'Choisissez un autre créneau' } };
+
+      // verrou sur les deux créneaux, toujours dans le même ordre (pas d'interblocage)
+      const { rows: creneaux } = await client.query(
+        `SELECT cr.id_creneau, cr.statut, cr.debut > now() AS a_venir, p.id_praticien
+           FROM creneaux cr JOIN plages_disponibilite p USING (id_plage)
+          WHERE cr.id_creneau = ANY($1::uuid[])
+          ORDER BY cr.id_creneau
+            FOR UPDATE OF cr`,
+        [[r.id_creneau, req.body.idCreneau]],
+      );
+      const nouveau = creneaux.find((c) => c.id_creneau === req.body.idCreneau);
+      if (!nouveau) return { status: 404, body: { message: 'Créneau introuvable' } };
+      if (nouveau.id_praticien !== r.id_praticien) return { status: 422, body: { message: 'Le report se fait chez le même praticien' } };
+      if (nouveau.statut !== 'libre' || !nouveau.a_venir) return { status: 409, body: PRIS };
+
+      await client.query("UPDATE creneaux SET statut = 'libre' WHERE id_creneau = $1", [r.id_creneau]);
+      await client.query("UPDATE creneaux SET statut = 'reserve' WHERE id_creneau = $1", [nouveau.id_creneau]);
+      await client.query("UPDATE rendez_vous SET statut = 'reporte' WHERE id_rdv = $1", [r.id_rdv]);
+      const { rows: [n] } = await client.query(
+        `INSERT INTO rendez_vous (id_patient, id_creneau, motif_chiffre, statut, origine, id_rdv_origine)
+         VALUES ($1, $2, $3, 'planifie', 'en_ligne', $4) RETURNING id_rdv`,
+        [r.id_patient, nouveau.id_creneau, r.motif_chiffre, r.id_rdv],   // même patient : le motif chiffré reste valide
+      );
+      return { status: 200, body: { idRdv: n.id_rdv, message: 'Rendez-vous reporté' } };
+    });
+    if (outcome.refus) return refuser(req, res, `report du rendez-vous ${req.params.id} d'un autre patient`);
+    if (outcome.status === 200) {
+      await notifierPatient(outcome.body.idRdv, 'modification');
+      await notifierPraticien(outcome.body.idRdv, 'report');
+    }
+    return res.status(outcome.status).json(outcome.body);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json(PRIS);   // index unique : dernier rempart
+    throw err;
+  }
 });
 
 module.exports = router;
