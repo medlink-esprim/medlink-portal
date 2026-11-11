@@ -42,6 +42,7 @@ app.use('/api/praticiens', require('./routes/praticiens'));         // US-05 Akr
 app.use('/api/creneaux', require('./routes/creneaux'));             // US-06 Akram
 app.use('/api/rendez-vous', require('./routes/rendezVous'));        // US-07 Iheb
 app.use('/api/admin/roles', require('./routes/roles'));             // US-33 Iheb
+app.use('/api/patients', require('./routes/patients'));             // US-11, US-12, US-13, US-15 Akram
 // ===== FIN DES ROUTES =====
 
 // 404 pour toute route /api inconnue
