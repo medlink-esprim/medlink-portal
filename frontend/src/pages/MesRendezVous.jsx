@@ -1,5 +1,6 @@
 // US-11 : « Mes rendez-vous » — à venir, passés, annulés (cf. maquette)
 // US-09 : annulation jusqu'à 24 h avant
+// US-10 : report sur un créneau libre du même praticien
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api.js'
@@ -10,6 +11,8 @@ const TZ = 'Africa/Tunis'
 const fmtJour = new Intl.DateTimeFormat('fr-FR', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' })
 const fmtHeure = new Intl.DateTimeFormat('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' })
 const dateHeure = (iso) => `${fmtJour.format(new Date(iso))} · ${fmtHeure.format(new Date(iso))}`
+const fmtLong = new Intl.DateTimeFormat('fr-FR', { timeZone: TZ, day: 'numeric', month: 'long' })
+const isoJour = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(d)
 
 const STATUTS = {
   planifie: ['Planifié', 'pill-ok'],
@@ -34,6 +37,9 @@ function Contenu() {
   const [rdvs, setRdvs] = useState(null)
   const [tab, setTab] = useState('avenir')
   const [aAnnuler, setAAnnuler] = useState(null)
+  const [aReporter, setAReporter] = useState(null)       // rendez-vous en cours de report
+  const [libres, setLibres] = useState([])
+  const [choisi, setChoisi] = useState(null)
   const [message, setMessage] = useState(null)
 
   async function charger() {
@@ -49,6 +55,27 @@ function Contenu() {
       ? { type: 'ok', text: 'Rendez-vous annulé. Le créneau a été libéré et le praticien prévenu.' }
       : { type: 'error', text: res.data?.message || 'Annulation impossible' })
     charger()
+  }
+
+  // US-10 : créneaux libres du même praticien sur les 30 prochains jours
+  async function ouvrirReport(r) {
+    setAReporter(r); setChoisi(null); setMessage(null); setAAnnuler(null)
+    const debut = new Date()
+    const fin = new Date(debut.getTime() + 30 * 86400000)
+    const q = new URLSearchParams({ praticien: r.id_praticien, debut: isoJour(debut), fin: isoJour(fin) })
+    const res = await api(`/creneaux?${q}`)
+    setLibres(res.ok ? res.data.filter((c) => c.statut === 'libre').slice(0, 15) : [])
+  }
+
+  async function confirmerReport() {
+    const res = await api(`/rendez-vous/${aReporter.id_rdv}/report`, { method: 'PATCH', body: { idCreneau: choisi.id_creneau } })
+    if (res.ok) {
+      setMessage({ type: 'ok', text: `Rendez-vous reporté au ${dateHeure(choisi.debut)}. L'ancien créneau a été libéré et le praticien prévenu.` })
+      setAReporter(null)
+      return charger()
+    }
+    setMessage({ type: 'error', text: res.data?.message || 'Report impossible' })
+    if (res.status === 409) ouvrirReport(aReporter)   // le créneau vient d'être pris : on recharge la liste
   }
 
   if (!rdvs) return null
@@ -85,6 +112,7 @@ function Contenu() {
                     ) : (
                       <span className="actions-ligne">
                         {/* ===== ACTIONS SUR UN RENDEZ-VOUS ===== */}
+                        <button className="btn-secondary" onClick={() => ouvrirReport(r)}>Reporter</button>
                         <button className="btn-secondary btn-rouge" onClick={() => { setAAnnuler(r.id_rdv); setMessage(null) }}>Annuler</button>
                       </span>
                     )
@@ -102,6 +130,23 @@ function Contenu() {
       </section>
       <div className="two-cols">
         {/* ===== PANNEAU DE REPORT ===== */}
+        {aReporter && (
+          <section className="card">
+            <h2>Reporter le rendez-vous du {fmtLong.format(new Date(aReporter.debut))}</h2>
+            <p className="muted">Créneaux libres chez le même praticien (Dr {aReporter.praticien_prenom} {aReporter.praticien_nom})</p>
+            <div className="grille">
+              {libres.map((c) => (
+                <button key={c.id_creneau} type="button" className={`creneau ${choisi?.id_creneau === c.id_creneau ? 'choisi' : ''}`}
+                  title={c.clinique} onClick={() => setChoisi(c)}>{dateHeure(c.debut)}</button>
+              ))}
+            </div>
+            {libres.length === 0 && <p className="muted">Aucun créneau libre sur les 30 prochains jours.</p>}
+            <div className="actions">
+              <button className="btn-primary btn-auto" disabled={!choisi} onClick={confirmerReport}>Confirmer le report</button>
+              <button className="btn-secondary btn-auto" onClick={() => setAReporter(null)}>Fermer</button>
+            </div>
+          </section>
+        )}
         <aside className="card">
           <h2>Rappels</h2>
           <p className="muted">Un rappel vous est envoyé la veille de chaque rendez-vous, sur les canaux choisis dans « Mon profil ». En cas d'annulation, le créneau est libéré et le praticien prévenu automatiquement.</p>
