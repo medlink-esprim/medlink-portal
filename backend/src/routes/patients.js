@@ -5,6 +5,7 @@
 //   PUT /moi/coordonnees          (US-15) téléphone ; e-mail avec mot de passe actuel puis vérification
 //   PUT /moi/preferences          (US-12) canaux de notification et rappel
 //   POST /moi/consentement        (US-04) nouveau consentement à la politique en vigueur
+//   GET /moi/documents            (US-13) résultats et documents du dossier du patient
 const express = require('express');
 const Joi = require('joi');
 const argon2 = require('argon2');
@@ -138,6 +139,20 @@ router.post('/moi/consentement', requireRole('PATIENT'), async (req, res) => {
     [req.user.id, POLITIQUE_VERSION, req.ip || null],
   );
   return res.status(201).json({ message: 'Consentement enregistré', version: POLITIQUE_VERSION });
+});
+
+// US-13 : documents du patient connecté. Le filtre sur l'identifiant du jeton garantit
+// qu'un patient ne voit jamais les documents d'un autre.
+router.get('/moi/documents', requirePermission('DOSSIER_PROPRE'), async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT doc.id_document, doc.type, doc.titre, doc.date_publication
+       FROM documents_medicaux doc
+       JOIN dossiers_medicaux d USING (id_dossier)
+      WHERE d.id_patient = $1
+      ORDER BY doc.date_publication DESC`,
+    [req.user.id],
+  );
+  res.json(rows);
 });
 
 module.exports = router;

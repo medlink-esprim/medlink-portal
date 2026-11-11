@@ -121,3 +121,11 @@ textarea { width: 100%; padding: .6rem .7rem; border: 1px solid var(--line); bor
 .interrupteur input:checked::after { left: 1.45rem; }
 .interrupteur input:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
 @media (max-width: 860px) { .two-cols-profil { grid-template-columns: 1fr; } }
+/* US-13 / US-14 : résultats */
+.two-cols-resultats { grid-template-columns: 2fr 1fr; align-items: start; }
+.documents { list-style: none; padding: 0; margin: 0; }
+.documents li { display: flex; align-items: center; gap: 1rem; padding: .9rem 0; border-bottom: 1px solid #EEF0F3; }
+.doc-icone { flex: none; width: 2.6rem; height: 2.6rem; border-radius: 8px; background: #FBE5E7; color: #A3172B; font-size: .75rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.doc-texte { flex: 1; min-width: 0; }
+.doc-texte .pill { margin-left: .5rem; }
+@media (max-width: 860px) { .two-cols-resultats { grid-template-columns: 1fr; } .documents li { flex-wrap: wrap; } }
