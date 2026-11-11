@@ -139,3 +139,45 @@ test('US-08 : confirmation enregistrée et envoyée par e-mail après la réserv
   expect(rows.length).toBeGreaterThanOrEqual(1);
   expect(rows.every((r) => r.canal === 'email' && r.statut === 'envoyee')).toBe(true);
 });
+
+// Réserve un créneau libre d'au moins 7 jours plus tard (bien au-delà du délai de 24 h)
+async function reserver(agent, decalage = 0) {
+  const debut = new Date(new Date(`${prochainJour(1)}T00:00:00Z`).getTime() + 7 * 86400000).toISOString().slice(0, 10);
+  const libres = (await agentPatient.get(`/api/creneaux?praticien=${praticien.id}&debut=${debut}`)).body.filter((c) => c.statut === 'libre');
+  const c = libres[decalage];
+  const res = await agent.post('/api/rendez-vous').send({ idCreneau: c.id_creneau, motif: 'Contrôle' });
+  expect(res.status).toBe(201);
+  return { idRdv: res.body.idRdv, creneau: c };
+}
+
+test('US-09 / TA-3.4 : annulation => créneau libéré, patient et praticien prévenus', async () => {
+  const { idRdv, creneau } = await reserver(agentPatient);
+  const res = await agentPatient.patch(`/api/rendez-vous/${idRdv}/annulation`);
+  expect(res.status).toBe(200);
+
+  const { rows: [r] } = await db.query('SELECT statut, date_annulation FROM rendez_vous WHERE id_rdv = $1', [idRdv]);
+  expect(r.statut).toBe('annule');
+  expect(r.date_annulation).not.toBeNull();
+  const { rows: [c] } = await db.query('SELECT statut FROM creneaux WHERE id_creneau = $1', [creneau.id_creneau]);
+  expect(c.statut).toBe('libre');
+  const { rows: n } = await db.query('SELECT type, id_destinataire FROM notifications WHERE id_rdv = $1 ORDER BY type', [idRdv]);
+  expect(n).toEqual(expect.arrayContaining([
+    { type: 'annulation', id_destinataire: patient.id },
+    { type: 'alerte', id_destinataire: praticien.id },
+  ]));
+  // une seconde annulation est refusée
+  expect((await agentPatient.patch(`/api/rendez-vous/${idRdv}/annulation`)).status).toBe(409);
+});
+
+test('US-09 : rendez-vous d\'un autre patient => 403 ; moins de 24 h => 422', async () => {
+  const { idRdv, creneau } = await reserver(agentPatient);
+  const autre = await connecter(autrePatient);
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  expect((await autre.patch(`/api/rendez-vous/${idRdv}/annulation`)).status).toBe(403);
+  warn.mockRestore();
+
+  await db.query("UPDATE creneaux SET debut = now() + interval '2 hours', fin = now() + interval '150 minutes' WHERE id_creneau = $1", [creneau.id_creneau]);
+  const tard = await agentPatient.patch(`/api/rendez-vous/${idRdv}/annulation`);
+  expect(tard.status).toBe(422);
+  expect(tard.body.message).toMatch(/24 heures/);
+});
