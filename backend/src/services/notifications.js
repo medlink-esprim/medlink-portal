@@ -84,8 +84,8 @@ async function envoyer({ idDestinataire, idRdv, type, canal, destination, sujet,
     console.error(`Notification ${n.id_notification} (${type}/${canal}) non envoyée : ${err.message}`);
   }
   await db.query(
-    "UPDATE notifications SET statut = $2, date_envoi = CASE WHEN $2 = 'envoyee' THEN now() END WHERE id_notification = $1",
-    [n.id_notification, statut],
+    'UPDATE notifications SET statut = $2, date_envoi = CASE WHEN $3 THEN now() END WHERE id_notification = $1',
+    [n.id_notification, statut, statut === 'envoyee'],
   );
   return statut === 'envoyee';
 }
