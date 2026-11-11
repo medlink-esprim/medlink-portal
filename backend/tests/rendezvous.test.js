@@ -181,3 +181,16 @@ test('US-09 : rendez-vous d\'un autre patient => 403 ; moins de 24 h => 422', as
   expect(tard.status).toBe(422);
   expect(tard.body.message).toMatch(/24 heures/);
 });
+
+test('US-11 : « Mes rendez-vous » liste uniquement les rendez-vous du patient, avec leur statut', async () => {
+  const res = await agentPatient.get('/api/patients/moi/rendez-vous');
+  expect(res.status).toBe(200);
+  const { rows } = await db.query('SELECT id_rdv FROM rendez_vous WHERE id_patient = $1', [patient.id]);
+  expect(res.body.map((r) => r.id_rdv).sort()).toEqual(rows.map((r) => r.id_rdv).sort());
+  expect(res.body.some((r) => r.statut === 'annule')).toBe(true);
+  expect(res.body[0]).toEqual(expect.objectContaining({ praticien_nom: 'Trabelsi', specialite: 'Cardiologie', modifiable: expect.any(Boolean) }));
+
+  const autre = await connecter(autrePatient);
+  const sesRdv = (await autre.get('/api/patients/moi/rendez-vous')).body;
+  expect(sesRdv.every((r) => !rows.some((x) => x.id_rdv === r.id_rdv))).toBe(true);
+});
