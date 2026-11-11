@@ -78,7 +78,8 @@ router.post('/verification', validate(tokenSchema), async (req, res) => {
     if (!id) return false;
     await client.query(
       `UPDATE utilisateurs SET statut = 'actif', email_verifie = true
-        WHERE id_utilisateur = $1 AND statut = 'en_attente'`,
+        WHERE id_utilisateur = $1
+          AND (statut = 'en_attente' OR (statut = 'actif' AND NOT email_verifie))`,   // US-15 : nouvelle adresse
       [id],
     );
     return true;

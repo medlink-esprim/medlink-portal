@@ -110,3 +110,14 @@ textarea { width: 100%; padding: .6rem .7rem; border: 1px solid var(--line); bor
 .btn-rouge { color: var(--crimson); }
 .btn-danger { border: 0; border-radius: 7px; background: var(--crimson); color: #fff; font-weight: 600; }
 .grille .creneau { min-width: 130px; }
+/* US-12 / US-15 : profil */
+.two-cols-profil { grid-template-columns: 1.4fr 1fr; align-items: start; }
+.colonne { display: flex; flex-direction: column; gap: 1rem; }
+.sous-titre { margin-top: 1.4rem; }
+.interrupteur { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .7rem 0; border-bottom: 1px solid #EEF0F3; font-weight: 400; margin: 0; }
+.interrupteur input { appearance: none; width: 2.8rem; height: 1.5rem; border-radius: 999px; background: #CBD2DC; position: relative; cursor: pointer; flex: none; border: 0; padding: 0; transition: background .15s; }
+.interrupteur input::after { content: ''; position: absolute; top: .15rem; left: .15rem; width: 1.2rem; height: 1.2rem; border-radius: 50%; background: #fff; transition: left .15s; }
+.interrupteur input:checked { background: #1E7A45; }
+.interrupteur input:checked::after { left: 1.45rem; }
+.interrupteur input:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+@media (max-width: 860px) { .two-cols-profil { grid-template-columns: 1fr; } }
