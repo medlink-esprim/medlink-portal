@@ -41,6 +41,7 @@ app.use('/api/disponibilites', require('./routes/disponibilites'));   // US-18 A
 app.use('/api/praticiens', require('./routes/praticiens'));         // US-05 Akram
 app.use('/api/creneaux', require('./routes/creneaux'));             // US-06 Akram
 app.use('/api/rendez-vous', require('./routes/rendezVous'));        // US-07 Iheb
+app.use('/api/admin/roles', require('./routes/roles'));             // US-33 Iheb
 // ===== FIN DES ROUTES =====
 
 // 404 pour toute route /api inconnue

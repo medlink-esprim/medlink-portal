@@ -89,6 +89,7 @@ router.get('/me', requireAuth, async (req, res) => {
     specialite: u.specialite || null,
     mfaActive: Boolean(u.mfa_active),
     inactiviteMin: INACTIVITE_MIN,
+    permissions: req.user.perms,   // US-33 : le menu n'affiche que les pages autorisées
   });
 });
 

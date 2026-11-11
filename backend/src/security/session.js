@@ -22,9 +22,21 @@ const cookieBase = {
   sameSite: 'strict',         // pas envoyé par un autre site (CSRF)
 };
 
+// US-33 : permissions accordées au rôle, lues en base à chaque connexion et à chaque
+// renouvellement du jeton d'accès (une modification s'applique donc en 5 minutes au plus).
+async function permissionsDuRole(role, client = db) {
+  const { rows } = await client.query(
+    `SELECT p.code FROM role_permission rp
+       JOIN roles r USING (id_role) JOIN permissions p USING (id_permission)
+      WHERE r.code = $1 ORDER BY p.code`,
+    [role],
+  );
+  return rows.map((r) => r.code);
+}
+
 function setCookies(res, s, refresh) {
   const access = jwt.sign(
-    { sub: s.id, sid: s.sid, role: s.role, prenom: s.prenom },
+    { sub: s.id, sid: s.sid, role: s.role, prenom: s.prenom, perms: s.perms || [] },
     config.jwtSecret,
     { algorithm: 'HS256', expiresIn: `${ACCES_MIN}m` },
   );
@@ -47,7 +59,8 @@ async function openSession(res, user, client = db) {
      RETURNING id_session`,
     [user.id, sha256(refresh), DUREE_MAX_H],
   );
-  setCookies(res, { ...user, sid: rows[0].id_session }, refresh);
+  const perms = await permissionsDuRole(user.role, client);
+  setCookies(res, { ...user, sid: rows[0].id_session, perms }, refresh);
 }
 
 // Lit le jeton d'accès : { user } si valide, { error: 'absent' | 'expire' | 'invalide' } sinon.
@@ -56,7 +69,7 @@ function readAccess(req, { ignoreExpiration = false } = {}) {
   if (!token) return { error: 'absent' };
   try {
     const p = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'], ignoreExpiration });
-    return { user: { id: p.sub, sid: p.sid, role: p.role, prenom: p.prenom } };
+    return { user: { id: p.sub, sid: p.sid, role: p.role, prenom: p.prenom, perms: p.perms || [] } };
   } catch (err) {
     return { error: err.name === 'TokenExpiredError' ? 'expire' : 'invalide' };
   }
@@ -90,7 +103,8 @@ async function refreshSession(req, res) {
   );
   if (!rows[0]) return null;
   const user = { id: rows[0].id_utilisateur, role: rows[0].role, prenom: rows[0].prenom };
-  setCookies(res, { ...user, sid: rows[0].id_session }, nouveau);
+  const perms = await permissionsDuRole(user.role);
+  setCookies(res, { ...user, sid: rows[0].id_session, perms }, nouveau);
   return user;
 }
 
@@ -112,6 +126,6 @@ async function revokeAllSessions(client, userId) {
 }
 
 module.exports = {
-  INACTIVITE_MIN, openSession, readAccess, touchSession, refreshSession, closeSession,
+  INACTIVITE_MIN, permissionsDuRole, openSession, readAccess, touchSession, refreshSession, closeSession,
   clearCookies, revokeAllSessions,
 };

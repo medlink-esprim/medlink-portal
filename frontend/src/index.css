@@ -90,3 +90,7 @@ textarea { width: 100%; padding: .6rem .7rem; border: 1px solid var(--line); bor
 .actions { display: flex; gap: .8rem; flex-wrap: wrap; margin-top: 1rem; }
 .actions .btn-primary, .actions .btn-secondary { height: 2.6rem; }
 .btn-link { display: inline-flex; align-items: center; justify-content: center; }
+/* US-33 : matrice des droits */
+.matrice td.center { text-align: center; }
+.matrice input[type=checkbox] { width: 1.1rem; height: 1.1rem; accent-color: var(--navy); }
+.small-note { align-self: center; font-size: .85rem; }

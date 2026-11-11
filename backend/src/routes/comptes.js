@@ -6,12 +6,12 @@ const express = require('express');
 const Joi = require('joi');
 const db = require('../db');
 const validate = require('../middleware/validate');
-const { requireRole } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/auth');
 const { issueToken } = require('../security/tokens');
 const mailer = require('../services/mailer');
 
 const router = express.Router();
-router.use(requireRole('AGENT_ADMIN', 'ADMIN'));   // toutes les routes du back-office
+router.use(requirePermission('COMPTES_GERER'));   // toutes les routes du back-office
 
 router.get('/cliniques', async (req, res) => {
   const { rows } = await db.query('SELECT id_clinique, nom, ville FROM cliniques ORDER BY ville');

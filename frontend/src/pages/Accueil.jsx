@@ -7,7 +7,7 @@ const RACCOURCIS = {
   PATIENT: [['/patient/rendez-vous/nouveau', 'Prendre rendez-vous']],
   PRATICIEN: [['/praticien/disponibilites', 'Publier mes disponibilités']],
   AGENT_ADMIN: [['/back-office/comptes/nouveau', 'Créer un compte praticien ou agent']],
-  ADMIN: [['/back-office/comptes/nouveau', 'Créer un compte praticien ou agent']],
+  ADMIN: [['/back-office/comptes/nouveau', 'Créer un compte praticien ou agent'], ['/admin/roles', 'Gérer les rôles et les droits']],
 }
 
 function Contenu() {

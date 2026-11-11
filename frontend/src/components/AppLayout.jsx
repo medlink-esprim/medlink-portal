@@ -13,12 +13,13 @@ const LIBELLES = {
   ADMIN: 'Administrateur du portail', DIRECTION: 'Direction',
 }
 
-// ===== MENUS : chaque user story ajoute ses entrées =====
+// ===== MENUS : chaque user story ajoute ses entrées [chemin, libellé, permission requise] =====
+// US-33 : une entrée n'est affichée que si le rôle a reçu la permission correspondante.
 const MENUS = {
-  PATIENT: [['/accueil', 'Tableau de bord'], ['/patient/rendez-vous/nouveau', 'Prendre rendez-vous']],
-  PRATICIEN: [['/accueil', 'Tableau de bord'], ['/praticien/disponibilites', 'Disponibilités']],
-  AGENT_ADMIN: [['/accueil', 'Tableau de bord'], ['/back-office/comptes/nouveau', 'Créer un compte']],
-  ADMIN: [['/accueil', 'Tableau de bord'], ['/back-office/comptes/nouveau', 'Créer un compte']],
+  PATIENT: [['/accueil', 'Tableau de bord'], ['/patient/rendez-vous/nouveau', 'Prendre rendez-vous', 'RDV_PRENDRE']],
+  PRATICIEN: [['/accueil', 'Tableau de bord'], ['/praticien/disponibilites', 'Disponibilités', 'DISPONIBILITES_GERER']],
+  AGENT_ADMIN: [['/accueil', 'Tableau de bord'], ['/back-office/comptes/nouveau', 'Créer un compte', 'COMPTES_GERER']],
+  ADMIN: [['/accueil', 'Tableau de bord'], ['/back-office/comptes/nouveau', 'Créer un compte', 'COMPTES_GERER'], ['/admin/roles', 'Rôles et droits', 'ROLES_GERER']],
   DIRECTION: [['/accueil', 'Tableau de bord']],
 }
 
@@ -67,7 +68,7 @@ export default function AppLayout({ title, subtitle, roles, children }) {
         <aside className="sidebar">
           <div className="logo logo-light"><span className="logo-mark">+</span>MedLink</div>
           <nav>
-            {(MENUS[user.role] || []).map(([to, label]) => (
+            {(MENUS[user.role] || []).filter(([, , perm]) => !perm || (user.permissions || []).includes(perm)).map(([to, label]) => (
               <NavLink key={to} to={to} end>{label}</NavLink>
             ))}
           </nav>

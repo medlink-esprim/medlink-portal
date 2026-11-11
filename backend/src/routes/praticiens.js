@@ -3,10 +3,10 @@
 const express = require('express');
 const Joi = require('joi');
 const db = require('../db');
-const { requireRole } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/auth');
 
 const router = express.Router();
-router.use(requireRole('PATIENT'));
+router.use(requirePermission('RDV_PRENDRE'));
 
 // Valeurs des listes déroulantes : spécialités réellement proposées et cliniques du réseau
 router.get('/filtres', async (req, res) => {

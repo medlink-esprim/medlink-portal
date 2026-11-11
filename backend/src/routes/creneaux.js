@@ -5,10 +5,10 @@
 const express = require('express');
 const Joi = require('joi');
 const db = require('../db');
-const { requireRole } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/auth');
 
 const router = express.Router();
-router.use(requireRole('PATIENT'));
+router.use(requirePermission('RDV_PRENDRE'));
 
 const dateIso = Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).custom((v, helpers) => (
   new Date(`${v}T00:00:00Z`).toISOString().startsWith(v) ? v : helpers.error('any.invalid')
