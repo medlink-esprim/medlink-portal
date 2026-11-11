@@ -14,7 +14,7 @@ const { genererSecret, verifierCode, uriOtpauth } = require('../security/totp');
 const { chiffrer, dechiffrer } = require('../security/chiffrement');
 const { sha256 } = require('../security/tokens');
 const { openSession } = require('../security/session');
-const { journaliser } = require('../security/journal');
+const { MESSAGE_VERROU, enregistrerEchec, reinitialiserEchecs } = require('../security/bruteforce');
 
 const router = express.Router();
 const EXPIRE = { message: 'Vérification expirée, veuillez vous reconnecter' };
@@ -23,7 +23,8 @@ const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // sans 0/O ni 1/I : pas 
 
 async function lireUtilisateur(id) {
   const { rows } = await db.query(
-    `SELECT u.id_utilisateur, u.prenom, u.email, u.statut, u.mfa_active, u.mfa_secret_chiffre, r.code AS role
+    `SELECT u.id_utilisateur, u.prenom, u.email, u.statut, u.mfa_active, u.mfa_secret_chiffre, r.code AS role,
+            COALESCE(u.verrouille_jusqua > now(), false) AS verrouille
        FROM utilisateurs u JOIN roles r USING (id_role) WHERE u.id_utilisateur = $1`,
     [id],
   );
@@ -62,11 +63,12 @@ router.post('/mfa/enrolement/confirmation', validate(codeSchema), async (req, re
   const id = lireJetonMfa(req, 'enrolement');
   const user = id && await lireUtilisateur(id);
   if (!user || user.mfa_active || !user.mfa_secret_chiffre) return res.status(401).json(EXPIRE);
+  if (user.verrouille) return res.status(423).json(MESSAGE_VERROU);   // US-41
 
   const secret = dechiffrer(user.mfa_secret_chiffre, user.id_utilisateur);
   if (!verifierCode(secret, req.body.code)) {
-    journaliser('MFA_ECHEC', req, { utilisateur: user.id_utilisateur, etape: 'enrolement' });
-    return res.status(401).json(INVALIDE);
+    const { verrouille } = await enregistrerEchec(user.id_utilisateur, req, 'mfa_enrolement');   // US-41
+    return res.status(verrouille ? 423 : 401).json(verrouille ? MESSAGE_VERROU : INVALIDE);
   }
 
   const codes = genererCodesSecours();
@@ -80,6 +82,7 @@ router.post('/mfa/enrolement/confirmation', validate(codeSchema), async (req, re
         [user.id_utilisateur, sha256(normaliser(code))],
       );
     }
+    await reinitialiserEchecs(user.id_utilisateur, client);
     await openSession(res, { id: user.id_utilisateur, role: user.role, prenom: user.prenom }, client);
   });
   effacerJetonMfa(res);
@@ -96,6 +99,7 @@ router.post('/mfa', validate(verifSchema), async (req, res) => {
   const id = lireJetonMfa(req, 'verification');
   const user = id && await lireUtilisateur(id);
   if (!user || !user.mfa_active) return res.status(401).json(EXPIRE);
+  if (user.verrouille) return res.status(423).json(MESSAGE_VERROU);   // US-41
 
   let valide = false;
   let codesRestants;
@@ -118,11 +122,12 @@ router.post('/mfa', validate(verifSchema), async (req, res) => {
     }
   }
   if (!valide) {
-    journaliser('MFA_ECHEC', req, { utilisateur: user.id_utilisateur, etape: 'verification' });
-    return res.status(401).json(INVALIDE);
+    const { verrouille } = await enregistrerEchec(user.id_utilisateur, req, 'mfa_verification');   // US-41
+    return res.status(verrouille ? 423 : 401).json(verrouille ? MESSAGE_VERROU : INVALIDE);
   }
 
   effacerJetonMfa(res);
+  await reinitialiserEchecs(user.id_utilisateur);
   await openSession(res, { id: user.id_utilisateur, role: user.role, prenom: user.prenom });
   return res.json({ role: user.role, prenom: user.prenom, codesSecoursRestants: codesRestants });
 });
