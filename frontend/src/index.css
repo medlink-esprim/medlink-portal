@@ -99,3 +99,13 @@ textarea { width: 100%; padding: .6rem .7rem; border: 1px solid var(--line); bor
 .consentement input { width: auto; height: auto; margin-top: .2rem; }
 .politique h3 { font-size: .95rem; margin: 1rem 0 .2rem; color: var(--navy); }
 .politique p { font-size: .9rem; margin: 0; }
+/* US-11 : Mes rendez-vous */
+.tabs { display: flex; gap: 1.6rem; border-bottom: 1px solid #DDE2E9; margin: 1rem 0; }
+.tabs button { background: none; border: 0; padding: .6rem 0; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; }
+.tabs button.actif { color: var(--crimson); border-bottom-color: var(--crimson); }
+.pill-ko { background: #FBE5E7; color: #A3172B; }
+.table .right { text-align: right; }
+.actions-ligne { display: inline-flex; gap: .5rem; flex-wrap: wrap; justify-content: flex-end; }
+.actions-ligne button { width: auto; height: 2.3rem; padding: 0 1rem; margin: 0; }
+.btn-rouge { color: var(--crimson); }
+.btn-danger { border: 0; border-radius: 7px; background: var(--crimson); color: #fff; font-weight: 600; }
