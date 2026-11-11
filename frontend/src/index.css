@@ -94,3 +94,8 @@ textarea { width: 100%; padding: .6rem .7rem; border: 1px solid var(--line); bor
 .matrice td.center { text-align: center; }
 .matrice input[type=checkbox] { width: 1.1rem; height: 1.1rem; accent-color: var(--navy); }
 .small-note { align-self: center; font-size: .85rem; }
+/* US-04 : consentement */
+.consentement { display: flex; gap: .6rem; align-items: flex-start; font-weight: 400; font-size: .88rem; margin-top: 1rem; }
+.consentement input { width: auto; height: auto; margin-top: .2rem; }
+.politique h3 { font-size: .95rem; margin: 1rem 0 .2rem; color: var(--navy); }
+.politique p { font-size: .9rem; margin: 0; }

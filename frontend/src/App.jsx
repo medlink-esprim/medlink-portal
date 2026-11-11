@@ -14,6 +14,7 @@ import Disponibilites from './pages/Disponibilites.jsx'
 import PrendreRendezVous from './pages/PrendreRendezVous.jsx'
 import ConfirmerRendezVous from './pages/ConfirmerRendezVous.jsx'
 import RolesDroits from './pages/RolesDroits.jsx'
+import Politique from './pages/Politique.jsx'
 // ===== IMPORTS DES PAGES =====
 
 export default function App() {
@@ -35,6 +36,7 @@ export default function App() {
       <Route path="/patient/rendez-vous/nouveau" element={<PrendreRendezVous />} />{/* US-05, US-06 */}
       <Route path="/patient/rendez-vous/confirmation" element={<ConfirmerRendezVous />} />{/* US-07 */}
       <Route path="/admin/roles" element={<RolesDroits />} />                     {/* US-33 */}
+      <Route path="/politique-confidentialite" element={<Politique />} />         {/* US-04 */}
       {/* ===== ROUTES DES PAGES ===== */}
       <Route path="*" element={<Navigate to="/connexion" replace />} />
     </Routes>

@@ -1,4 +1,5 @@
 // US-01 : inscription d'un patient et vérification de l'adresse e-mail.
+// US-04 : consentement obligatoire, versionné et historisé (date, version, adresse IP).
 // Montée sur /api/auth : POST /inscription, POST /verification
 const express = require('express');
 const Joi = require('joi');
@@ -8,6 +9,7 @@ const validate = require('../middleware/validate');
 const { checkPassword } = require('../security/passwordPolicy');
 const { issueToken, consumeToken } = require('../security/tokens');
 const mailer = require('../services/mailer');
+const { POLITIQUE_VERSION, POLITIQUE_DATE } = require('../politique');
 
 const router = express.Router();
 // Réponse identique que l'e-mail existe ou non : pas d'énumération des comptes.
@@ -19,7 +21,13 @@ const inscriptionSchema = Joi.object({
   email: Joi.string().trim().lowercase().email().max(160).required(),
   telephone: Joi.string().trim().pattern(/^\+?[0-9 ]{8,20}$/).required(),
   password: Joi.string().max(128).required(),
+  // US-04 : sans case cochée, l'inscription est refusée (422)
+  consentement: Joi.boolean().valid(true).required()
+    .messages({ 'any.only': 'Le consentement est obligatoire', 'any.required': 'Le consentement est obligatoire' }),
 });
+
+// Version de la politique affichée sur la page d'inscription
+router.get('/politique', (req, res) => res.json({ version: POLITIQUE_VERSION, date: POLITIQUE_DATE }));
 
 router.post('/inscription', validate(inscriptionSchema), async (req, res) => {
   const { nom, prenom, email, telephone, password } = req.body;
@@ -47,6 +55,10 @@ router.post('/inscription', validate(inscriptionSchema), async (req, res) => {
         `INSERT INTO patients (id_utilisateur, numero_dossier)
          VALUES ($1, 'P-' || to_char(now(), 'YY') || '-' || lpad(nextval('patients_numero_seq')::text, 4, '0'))`,
         [id],
+      );
+      await client.query(
+        'INSERT INTO consentements (id_patient, version_politique, adresse_ip) VALUES ($1, $2, $3)',
+        [id, POLITIQUE_VERSION, req.ip || null],
       );
       return issueToken(client, id, 'verification_email', 24 * 60);
     });

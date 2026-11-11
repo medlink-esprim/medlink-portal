@@ -21,15 +21,33 @@ test('US-56 : /api/health lit la base', async () => {
 
 test('US-01 : mot de passe trop court => 422 avec les règles', async () => {
   const res = await request(app).post('/api/auth/inscription')
-    .send({ nom: 'Test', prenom: 'Patient', email, telephone: '+216 98 000 000', password: 'court' });
+    .send({ nom: 'Test', prenom: 'Patient', email, telephone: '+216 98 000 000', password: 'court', consentement: true });
   expect(res.status).toBe(422);
   expect(res.body.regles).toContain('12 caractères minimum');
 });
 
+test('TA-3.1 : inscription sans consentement => refusée', async () => {
+  const res = await request(app).post('/api/auth/inscription')
+    .send({ nom: 'Test', prenom: 'Patient', email, telephone: '+216 98 000 000', password });
+  expect(res.status).toBe(400);
+  expect(res.body.details.join(' ')).toMatch(/consentement est obligatoire/);
+  const { rowCount } = await db.query('SELECT 1 FROM utilisateurs WHERE email = $1', [email]);
+  expect(rowCount).toBe(0);
+});
+
 test('US-01 + US-02 : inscription, vérification puis connexion', async () => {
   const signup = await request(app).post('/api/auth/inscription')
-    .send({ nom: 'Test', prenom: 'Patient', email, telephone: '+216 98 000 000', password });
+    .send({ nom: 'Test', prenom: 'Patient', email, telephone: '+216 98 000 000', password, consentement: true });
   expect(signup.status).toBe(202);
+
+  // US-04 : consentement historisé (version, date, adresse IP)
+  const consent = await db.query(
+    `SELECT c.version_politique, c.adresse_ip FROM consentements c
+       JOIN utilisateurs u ON u.id_utilisateur = c.id_patient WHERE u.email = $1`,
+    [email],
+  );
+  expect(consent.rows).toHaveLength(1);
+  expect(consent.rows[0].version_politique).toBe(require('../src/politique').POLITIQUE_VERSION);
 
   // avant vérification : connexion refusée
   let login = await request(app).post('/api/auth/login').send({ email, password });
