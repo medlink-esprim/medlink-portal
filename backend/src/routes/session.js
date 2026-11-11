@@ -8,6 +8,8 @@ const validate = require('../middleware/validate');
 const { requireAuth } = require('../middleware/auth');
 const { openSession, refreshSession, closeSession, INACTIVITE_MIN } = require('../security/session');
 const { ROLES_MFA, poserJetonMfa } = require('../security/mfa');
+const { MESSAGE_VERROU, enregistrerEchec, reinitialiserEchecs } = require('../security/bruteforce');
+const { journaliser } = require('../security/journal');
 
 const router = express.Router();
 const INVALID = { message: 'Identifiants invalides' };
@@ -28,7 +30,8 @@ const loginSchema = Joi.object({
 router.post('/login', validate(loginSchema), async (req, res) => {
   const { email, password } = req.body;
   const { rows } = await db.query(
-    `SELECT u.id_utilisateur, u.prenom, u.mot_de_passe_hash, u.statut, u.email_verifie, u.mfa_active, r.code AS role
+    `SELECT u.id_utilisateur, u.prenom, u.mot_de_passe_hash, u.statut, u.email_verifie, u.mfa_active, r.code AS role,
+            COALESCE(u.verrouille_jusqua > now(), false) AS verrouille
        FROM utilisateurs u JOIN roles r USING (id_role)
       WHERE u.email = $1`,
     [email],
@@ -42,6 +45,15 @@ router.post('/login', validate(loginSchema), async (req, res) => {
   } catch {
     passwordOk = false;
   }
+  // US-41 : compte verrouillé => refus, même avec le bon mot de passe
+  if (user && user.verrouille) {
+    journaliser('CONNEXION_REFUSEE', req, { utilisateur: user.id_utilisateur, raison: 'compte verrouillé' });
+    return res.status(423).json(MESSAGE_VERROU);
+  }
+  if (user && !passwordOk) {
+    const { verrouille } = await enregistrerEchec(user.id_utilisateur, req, 'mot_de_passe');
+    if (verrouille) return res.status(423).json(MESSAGE_VERROU);
+  }
   if (!user || !passwordOk || user.statut !== 'actif' || !user.email_verifie) {
     return res.status(401).json(INVALID);   // même message dans tous les cas
   }
@@ -53,6 +65,7 @@ router.post('/login', validate(loginSchema), async (req, res) => {
     return res.json(user.mfa_active ? { mfaRequis: true } : { mfaEnrolement: true });
   }
 
+  await reinitialiserEchecs(user.id_utilisateur);   // connexion complète (rôles sans MFA)
   await openSession(res, { id: user.id_utilisateur, role: user.role, prenom: user.prenom });
   return res.json({ role: user.role, prenom: user.prenom });
 });
