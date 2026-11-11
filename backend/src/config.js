@@ -40,6 +40,8 @@ if (!cles.has(active)) {
 module.exports = {
   chiffrement: { cles, active },
   rappelsActifs: process.env.RAPPELS_ACTIFS !== 'false',   // US-48
+  // US-13 : fichiers des documents médicaux, chiffrés, hors de la racine web (volume Docker « documents »)
+  documentsDir: process.env.DOCUMENTS_DIR || require('path').join(__dirname, '..', 'stockage'),
   port: Number(process.env.PORT || 3000),
   isProd: process.env.NODE_ENV === 'production',
   databaseUrl: process.env.DATABASE_URL,

@@ -35,5 +35,9 @@ au Sprint 4 elles seront déplacées dans HashiCorp Vault.
 6. Retirer l'ancienne clé de `.env` (`CHIFFREMENT_CLES=2:<nouvelle clé>`), redémarrer l'API,
    puis détruire toute copie de l'ancienne clé.
 
+Les fichiers des documents médicaux (volume « documents », US-13) ne sont pas rechiffrés par le
+script : ils restent lisibles tant que l'ancienne clé est présente dans `CHIFFREMENT_CLES`. Ne retirez
+donc l'ancienne clé (étape 6) qu'après avoir republié ces documents, ou gardez-la.
+
 Les sauvegardes faites avant la rotation restent chiffrées avec l'ancienne clé : la conserver
 hors ligne tant que ces sauvegardes existent.

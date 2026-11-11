@@ -24,6 +24,8 @@ services:
     environment:
       NODE_ENV: production
       TRUST_PROXY: 2          # Nginx de l'hôte + Nginx du conteneur web
+    volumes:
+      - documents:/app/stockage        # US-13 : documents médicaux chiffrés
     depends_on:
       db: { condition: service_healthy }
 
@@ -42,3 +44,4 @@ services:
 
 volumes:
   dbdata:
+  documents:              # US-13 : documents médicaux chiffrés
