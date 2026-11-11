@@ -1,4 +1,5 @@
 // US-13 : « Mes résultats et documents » — uniquement les documents du patient connecté (cf. maquette)
+// US-14 : consultation et téléchargement (déchiffrés à la volée par l'API, accès journalisé)
 import { useEffect, useState } from 'react'
 import { api } from '../api.js'
 import AppLayout from '../components/AppLayout.jsx'
@@ -19,6 +20,20 @@ function Contenu() {
     api('/patients/moi/documents').then((res) => (res.ok ? setDocs(res.data) : setErreur(res.data?.message || 'Chargement impossible')))
   }, [])
 
+  // US-14 : on s'assure d'abord que la session est valide (renouvelle le jeton d'accès si besoin)
+  async function ouvrir(id, inline) {
+    const me = await api('/auth/me')
+    if (!me.ok) return setErreur('Session expirée, reconnectez-vous.')
+    const url = `/api/documents/${id}/fichier${inline ? '?inline=1' : ''}`
+    if (inline) return window.open(url, '_blank', 'noopener')
+    const a = document.createElement('a')
+    a.href = url
+    a.download = ''
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  }
+
   if (!docs) return <Alert type="error">{erreur}</Alert>
   const annees = [...new Set(docs.map((d) => new Date(d.date_publication).getFullYear()))]
   const visibles = docs.filter((d) => (!type || d.type === type) && (!annee || new Date(d.date_publication).getFullYear() === Number(annee)))
@@ -27,6 +42,7 @@ function Contenu() {
     <div className="two-cols two-cols-resultats">
       <section className="card">
         <h2>Documents disponibles</h2>
+        {erreur && <Alert type="error">{erreur}</Alert>}
         {visibles.length === 0 && <p className="muted">Aucun document pour le moment. Vos résultats apparaîtront ici dès leur publication par votre praticien.</p>}
         <ul className="documents">
           {visibles.map((d) => (
@@ -38,6 +54,8 @@ function Contenu() {
               </span>
               <span className="actions-ligne">
                 {/* ===== ACTIONS SUR UN DOCUMENT ===== */}
+                <button className="btn-secondary" onClick={() => ouvrir(d.id_document, true)}>Consulter</button>
+                <button className="btn-navy" onClick={() => ouvrir(d.id_document, false)}>Télécharger</button>
               </span>
             </li>
           ))}
