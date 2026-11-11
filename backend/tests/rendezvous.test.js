@@ -128,3 +128,14 @@ test('TA-2.3 : le rendez-vous d\'un autre patient => 403 journalisé', async () 
   expect(JSON.parse(warn.mock.calls.at(-1)[0]).evenement).toBe('ACCES_REFUSE');
   warn.mockRestore();
 });
+
+// ---------- Sprint 3 ----------
+test('US-08 : confirmation enregistrée et envoyée par e-mail après la réservation', async () => {
+  const { rows } = await db.query(
+    `SELECT n.canal, n.statut FROM notifications n JOIN rendez_vous r USING (id_rdv)
+      WHERE r.id_patient = $1 AND n.type = 'confirmation'`,
+    [patient.id],
+  );
+  expect(rows.length).toBeGreaterThanOrEqual(1);
+  expect(rows.every((r) => r.canal === 'email' && r.statut === 'envoyee')).toBe(true);
+});

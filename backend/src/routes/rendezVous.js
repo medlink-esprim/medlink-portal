@@ -6,6 +6,7 @@ const db = require('../db');
 const validate = require('../middleware/validate');
 const { requireAuth, requirePermission, refuser } = require('../middleware/auth');
 const { chiffrer, dechiffrer } = require('../security/chiffrement');
+const { notifierPatient } = require('../services/notifications');
 
 const router = express.Router();
 const PRIS = { message: "Ce créneau vient d'être réservé par un autre patient. Choisissez un autre créneau." };
@@ -36,6 +37,8 @@ router.post('/', requirePermission('RDV_PRENDRE'), validate(schema), async (req,
       await client.query("UPDATE creneaux SET statut = 'reserve' WHERE id_creneau = $1", [req.body.idCreneau]);
       return { status: 201, body: { idRdv: rdv.id_rdv, message: 'Rendez-vous enregistré' } };
     });
+    // US-08 : confirmation envoyée APRÈS la validation de la transaction (e-mail et/ou SMS)
+    if (outcome.status === 201) await notifierPatient(outcome.body.idRdv, 'confirmation');
     return res.status(outcome.status).json(outcome.body);
   } catch (err) {
     if (err.code === '23505') return res.status(409).json(PRIS);   // index unique : dernier rempart
