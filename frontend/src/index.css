@@ -171,3 +171,13 @@ textarea { width: 100%; padding: .6rem .7rem; border: 1px solid var(--line); bor
 .entete-alertes { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
 .entete-alertes h2 { display: flex; align-items: center; gap: .5rem; }
 @media (max-width: 1100px) { .semaine { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* US-28 : comptes */
+.two-cols-comptes { grid-template-columns: 1.6fr 1fr; align-items: start; }
+.filtres-comptes { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: .5rem; margin-bottom: .8rem; }
+.filtres-comptes input, .filtres-comptes select { margin: 0; }
+.table-cliquable tbody tr { cursor: pointer; }
+.table-cliquable tbody tr:hover { background: #F7F8FA; }
+.table-cliquable tbody tr.choisi { background: #EEF2F7; }
+.confirmation { border: 1px solid #F3C4CA; background: #FDF2F3; border-radius: 8px; padding: .8rem 1rem; }
+.confirmation p { margin-top: 0; font-size: .9rem; }
+@media (max-width: 960px) { .two-cols-comptes { grid-template-columns: 1fr; } .filtres-comptes { grid-template-columns: 1fr; } }
