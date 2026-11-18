@@ -99,8 +99,40 @@ function Contenu() {
           )}
           <p><Link to="/politique-confidentialite">Lire la politique</Link></p>
         </section>
+        <AccesDossier />
       </div>
     </div>
+  )
+}
+
+// US-47 : qui a consulté mon dossier (journal des accès, en ajout seul)
+const ACTIONS = {
+  consultation_dossier: 'a consulté votre dossier',
+  consultation_document: 'a consulté',
+  telechargement_document: 'a téléchargé',
+  redaction_compte_rendu: 'a rédigé un compte-rendu',
+  publication_document: 'a publié',
+}
+const fmtDateHeure = (iso) => new Date(iso).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis', dateStyle: 'short', timeStyle: 'short' })
+
+function AccesDossier() {
+  const [acces, setAcces] = useState(null)
+  useEffect(() => { api('/patients/moi/acces').then((res) => setAcces(res.ok ? res.data : [])) }, [])
+  if (!acces) return null
+  return (
+    <section className="card">
+      <h2>Accès à mon dossier</h2>
+      {acces.length === 0 && <p className="muted">Aucun accès enregistré pour le moment.</p>}
+      <ul className="journal-acces">
+        {acces.slice(0, 8).map((a, i) => (
+          <li key={i}>
+            <strong>{a.auteur}</strong> {ACTIONS[a.action] || a.action}{a.document ? ` « ${a.document} »` : ''}
+            <br /><span className="muted">{fmtDateHeure(a.date_acces)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="small-note">Chaque accès à votre dossier médical est enregistré et ne peut pas être effacé.</p>
+    </section>
   )
 }
 

@@ -6,6 +6,7 @@
 //   PUT /moi/preferences          (US-12) canaux de notification et rappel
 //   POST /moi/consentement        (US-04) nouveau consentement à la politique en vigueur
 //   GET /moi/documents            (US-13) résultats et documents du dossier du patient
+//   GET /moi/acces                (US-47) qui a consulté mon dossier, et quand
 const express = require('express');
 const Joi = require('joi');
 const argon2 = require('argon2');
@@ -150,6 +151,24 @@ router.get('/moi/documents', requirePermission('DOSSIER_PROPRE'), async (req, re
        JOIN dossiers_medicaux d USING (id_dossier)
       WHERE d.id_patient = $1
       ORDER BY doc.date_publication DESC`,
+    [req.user.id],
+  );
+  res.json(rows);
+});
+
+// US-47 : transparence pour le patient — les 50 derniers accès à son dossier (journal en ajout seul)
+router.get('/moi/acces', requirePermission('DOSSIER_PROPRE'), async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT j.date_acces, j.action, j.role, j.id_document, doc.titre AS document,
+            CASE WHEN j.id_utilisateur = $1 THEN 'Vous'
+                 WHEN j.role = 'PRATICIEN' THEN 'Dr ' || u.prenom || ' ' || u.nom
+                 ELSE COALESCE(u.prenom || ' ' || u.nom, 'Compte supprimé') END AS auteur
+       FROM journal_acces_dossiers j
+       LEFT JOIN utilisateurs u ON u.id_utilisateur = j.id_utilisateur
+       LEFT JOIN documents_medicaux doc ON doc.id_document = j.id_document
+      WHERE j.id_patient = $1
+      ORDER BY j.date_acces DESC
+      LIMIT 50`,
     [req.user.id],
   );
   res.json(rows);

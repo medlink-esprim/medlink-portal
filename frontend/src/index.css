@@ -129,3 +129,6 @@ textarea { width: 100%; padding: .6rem .7rem; border: 1px solid var(--line); bor
 .doc-texte { flex: 1; min-width: 0; }
 .doc-texte .pill { margin-left: .5rem; }
 @media (max-width: 860px) { .two-cols-resultats { grid-template-columns: 1fr; } .documents li { flex-wrap: wrap; } }
+/* US-47 : accès au dossier */
+.journal-acces { list-style: none; padding: 0; margin: 0; }
+.journal-acces li { padding: .55rem 0; border-bottom: 1px solid #EEF0F3; font-size: .9rem; }
