@@ -14,7 +14,7 @@ router.get('/filtres', async (req, res) => {
     db.query(
       `SELECT DISTINCT pr.specialite FROM praticiens pr
          JOIN utilisateurs u USING (id_utilisateur)
-         JOIN praticien_clinique pc ON pc.id_praticien = pr.id_utilisateur
+         JOIN praticien_clinique pc ON pc.id_praticien = pr.id_utilisateur AND pc.actif
         WHERE u.statut = 'actif' AND pr.specialite IS NOT NULL
         ORDER BY pr.specialite`,
     ),
@@ -42,12 +42,12 @@ router.get('/', async (req, res) => {
                 AND ($2::uuid IS NULL OR p.id_clinique = $2)) AS creneaux_libres
        FROM praticiens pr
        JOIN utilisateurs u ON u.id_utilisateur = pr.id_utilisateur
-       JOIN praticien_clinique pc ON pc.id_praticien = pr.id_utilisateur
+       JOIN praticien_clinique pc ON pc.id_praticien = pr.id_utilisateur AND pc.actif
        JOIN cliniques c ON c.id_clinique = pc.id_clinique
       WHERE u.statut = 'actif'
         AND ($1::text IS NULL OR pr.specialite = $1)
         AND ($2::uuid IS NULL OR EXISTS (SELECT 1 FROM praticien_clinique x
-                                         WHERE x.id_praticien = pr.id_utilisateur AND x.id_clinique = $2))
+                                         WHERE x.id_praticien = pr.id_utilisateur AND x.id_clinique = $2 AND x.actif))
       GROUP BY u.id_utilisateur, u.nom, u.prenom, pr.specialite
       ORDER BY creneaux_libres DESC, u.nom
       LIMIT 50`,

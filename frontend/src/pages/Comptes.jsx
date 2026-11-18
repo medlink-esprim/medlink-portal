@@ -1,5 +1,6 @@
 // US-28 : « Comptes » — rechercher, modifier ou désactiver un compte (back-office).
 // La désactivation empêche toute connexion et ferme les sessions ouvertes ; l'historique est conservé.
+// US-29 : affectation d'un praticien à une ou plusieurs cliniques (il ne publie que là où il est affecté).
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api.js'
@@ -13,6 +14,42 @@ const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString('fr-FR', { time
 function Statut({ statut }) {
   const [libelle, classe] = STATUTS[statut] || [statut, '']
   return <span className={`pill ${classe}`}>{libelle}</span>
+}
+
+function AffectationCliniques({ idPraticien }) {
+  const [liste, setListe] = useState(null)
+  const [choix, setChoix] = useState([])
+  const [message, setMessage] = useState(null)
+
+  const charger = useCallback(async () => {
+    const res = await api(`/comptes/${idPraticien}/cliniques`)
+    if (res.ok) { setListe(res.data); setChoix(res.data.filter((c) => c.affecte).map((c) => c.id_clinique)) }
+  }, [idPraticien])
+  useEffect(() => { charger() }, [charger])
+
+  if (!liste) return null
+  const basculer = (id) => setChoix(choix.includes(id) ? choix.filter((x) => x !== id) : [...choix, id])
+
+  async function enregistrer() {
+    const res = await api(`/comptes/${idPraticien}/cliniques`, { method: 'PUT', body: { cliniques: choix } })
+    setMessage({ type: res.ok ? 'ok' : 'error', text: res.data?.message || 'Enregistrement impossible' })
+    if (res.ok) charger()
+  }
+
+  return (
+    <div className="affectations">
+      <h3 className="sous-titre">Cliniques d'exercice</h3>
+      {liste.map((c) => (
+        <label key={c.id_clinique} className="case">
+          <input type="checkbox" checked={choix.includes(c.id_clinique)} onChange={() => basculer(c.id_clinique)} />
+          {c.nom}{c.rdv_a_venir > 0 && <span className="muted"> · {c.rdv_a_venir} rendez-vous à venir</span>}
+        </label>
+      ))}
+      {message && <Alert type={message.type}>{message.text}</Alert>}
+      <button className="btn-navy btn-auto" disabled={choix.length === 0} onClick={enregistrer}>Enregistrer les affectations</button>
+      <p className="small-note">Le praticien publie ses disponibilités dans ces cliniques. Une clinique ne peut être retirée qu'une fois ses rendez-vous à venir reportés ou annulés.</p>
+    </div>
+  )
 }
 
 function Detail({ id, cliniques, onChange }) {
@@ -85,7 +122,7 @@ function Detail({ id, cliniques, onChange }) {
         )}
         <div className="actions"><button className="btn-primary btn-auto">Enregistrer les modifications</button></div>
       </form>
-      {/* ===== AFFECTATION AUX CLINIQUES ===== */}
+      {compte.role === 'PRATICIEN' && <AffectationCliniques idPraticien={compte.id_utilisateur} />}
       {message && <Alert type={message.type}>{message.text}</Alert>}
       <h3 className="sous-titre">Accès au portail</h3>
       {compte.statut === 'desactive'
