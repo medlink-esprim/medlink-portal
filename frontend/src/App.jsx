@@ -18,6 +18,7 @@ import Politique from './pages/Politique.jsx'
 import MesRendezVous from './pages/MesRendezVous.jsx'
 import MonProfil from './pages/MonProfil.jsx'
 import MesResultats from './pages/MesResultats.jsx'
+import MesPatients from './pages/MesPatients.jsx'
 // ===== IMPORTS DES PAGES =====
 
 export default function App() {
@@ -43,6 +44,7 @@ export default function App() {
       <Route path="/patient/rendez-vous" element={<MesRendezVous />} />           {/* US-11 */}
       <Route path="/patient/profil" element={<MonProfil />} />                    {/* US-12, US-15 */}
       <Route path="/patient/resultats" element={<MesResultats />} />              {/* US-13 */}
+      <Route path="/praticien/patients" element={<MesPatients />} />            {/* US-22 */}
       {/* ===== ROUTES DES PAGES ===== */}
       <Route path="*" element={<Navigate to="/connexion" replace />} />
     </Routes>
