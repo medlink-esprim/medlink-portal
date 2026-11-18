@@ -1,12 +1,14 @@
 // US-14 : téléchargement d'un document médical, déchiffré à la volée et journalisé.
 // Montée sur /api/documents : GET /:id/fichier (?inline=1 pour l'afficher dans le navigateur)
-// Contrôles : permission DOSSIER_PROPRE, PROPRIÉTÉ du document (403 journalisé sinon, TA-3.6),
+// Contrôles : le patient propriétaire (permission DOSSIER_PROPRE) ou un praticien qui le suit
+// (permission DOSSIER_PATIENTS + relation de soins, US-23) ; sinon 403 journalisé (TA-3.6),
 // intégrité (empreinte SHA-256 vérifiée avant tout envoi). Transmis uniquement en HTTPS (US-44).
 // US-47 : chaque accès autorisé est écrit dans le journal des accès aux dossiers avant l'envoi.
 const express = require('express');
 const Joi = require('joi');
 const db = require('../db');
-const { requirePermission, refuser } = require('../middleware/auth');
+const { requireAuth, refuser } = require('../middleware/auth');
+const { aRelationDeSoins } = require('../security/soins');
 const { lireDocument, IntegriteError } = require('../services/stockage');
 const { journaliser } = require('../security/journal');
 const { journaliserAcces } = require('../security/acces');
@@ -15,7 +17,7 @@ const router = express.Router();
 
 const nomFichier = (titre) => `${titre.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9 _-]/g, '').trim().replace(/\s+/g, '_') || 'document'}.pdf`;
 
-router.get('/:id/fichier', requirePermission('DOSSIER_PROPRE'), async (req, res) => {
+router.get('/:id/fichier', requireAuth, async (req, res) => {
   if (Joi.string().guid().validate(req.params.id).error) return res.status(404).json({ message: 'Document introuvable' });
   const { rows: [doc] } = await db.query(
     `SELECT doc.id_document, doc.titre, doc.chemin_fichier, doc.empreinte_sha256, d.id_patient
@@ -24,7 +26,10 @@ router.get('/:id/fichier', requirePermission('DOSSIER_PROPRE'), async (req, res)
     [req.params.id],
   );
   if (!doc) return res.status(404).json({ message: 'Document introuvable' });
-  if (doc.id_patient !== req.user.id) return refuser(req, res, `document ${doc.id_document} d'un autre patient`);
+  const perms = req.user.perms || [];
+  const proprietaire = perms.includes('DOSSIER_PROPRE') && doc.id_patient === req.user.id;
+  const soignant = !proprietaire && perms.includes('DOSSIER_PATIENTS') && await aRelationDeSoins(req.user.id, doc.id_patient);
+  if (!proprietaire && !soignant) return refuser(req, res, `document ${doc.id_document} hors de ses dossiers`);
 
   let contenu;
   try {
