@@ -2,12 +2,14 @@
 // Montée sur /api/documents : GET /:id/fichier (?inline=1 pour l'afficher dans le navigateur)
 // Contrôles : permission DOSSIER_PROPRE, PROPRIÉTÉ du document (403 journalisé sinon, TA-3.6),
 // intégrité (empreinte SHA-256 vérifiée avant tout envoi). Transmis uniquement en HTTPS (US-44).
+// US-47 : chaque accès autorisé est écrit dans le journal des accès aux dossiers avant l'envoi.
 const express = require('express');
 const Joi = require('joi');
 const db = require('../db');
 const { requirePermission, refuser } = require('../middleware/auth');
 const { lireDocument, IntegriteError } = require('../services/stockage');
 const { journaliser } = require('../security/journal');
+const { journaliserAcces } = require('../security/acces');
 
 const router = express.Router();
 
@@ -35,6 +37,11 @@ router.get('/:id/fichier', requirePermission('DOSSIER_PROPRE'), async (req, res)
 
   const inline = req.query.inline === '1';
   journaliser('DOCUMENT_TELECHARGE', req, { document: doc.id_document, mode: inline ? 'consultation' : 'telechargement' });
+  await journaliserAcces(req, {
+    idPatient: doc.id_patient,
+    idDocument: doc.id_document,
+    action: inline ? 'consultation_document' : 'telechargement_document',
+  });
   const nom = nomFichier(doc.titre);
   res.set({
     'Content-Type': 'application/pdf',
