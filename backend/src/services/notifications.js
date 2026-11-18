@@ -126,4 +126,37 @@ async function notifierPraticien(idRdv, action) {
   }
 }
 
-module.exports = { notifierPatient, notifierPraticien, detailsRdv };
+// US-25 : nouveau document dans le dossier. Le message ne contient JAMAIS le document ni son titre
+// (donnée médicale) : il invite le patient à se connecter. Canaux selon ses préférences (US-12).
+async function notifierDocument(idPatient, idPraticien) {
+  try {
+    const { rows: [d] } = await db.query(
+      `SELECT u.prenom, u.email, u.telephone, ud.prenom AS dr_prenom, ud.nom AS dr_nom,
+              COALESCE(pn.email_actif, true) AS email_actif, COALESCE(pn.sms_actif, false) AS sms_actif
+         FROM utilisateurs u
+         JOIN utilisateurs ud ON ud.id_utilisateur = $2
+         LEFT JOIN preferences_notification pn ON pn.id_patient = u.id_utilisateur
+        WHERE u.id_utilisateur = $1`,
+      [idPatient, idPraticien],
+    );
+    if (!d) return 0;
+    const t = {
+      sujet: 'MedLink — nouveau document disponible',
+      texte: `Bonjour ${d.prenom},\n\nDr ${d.dr_prenom} ${d.dr_nom} a ajouté un nouveau document à votre dossier médical.\nConsultez-le dans votre espace : ${config.appUrl}/patient/resultats\n\nPour protéger vos données, son contenu n'est jamais envoyé par e-mail.`,
+      sms: 'MedLink : un nouveau document est disponible dans votre espace patient.',
+    };
+    const canaux = [];
+    if (d.email_actif) canaux.push(['email', d.email]);
+    if (d.sms_actif && d.telephone) canaux.push(['sms', d.telephone]);
+    let n = 0;
+    for (const [canal, destination] of canaux) {
+      if (await envoyer({ idDestinataire: idPatient, idRdv: null, type: 'resultat', canal, destination, ...t })) n += 1;
+    }
+    return n;
+  } catch (err) {
+    console.error(`Notification de document au patient ${idPatient} impossible : ${err.message}`);
+    return 0;
+  }
+}
+
+module.exports = { notifierPatient, notifierPraticien, notifierDocument, detailsRdv };
