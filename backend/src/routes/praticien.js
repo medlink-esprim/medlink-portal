@@ -5,6 +5,8 @@
 //   GET /patients/:id/dossier     (US-23) dossier d'un patient reçu, accès journalisé (US-47)
 //   POST /rendez-vous/:id/compte-rendu (US-24) compte-rendu chiffré, publié en PDF dans le dossier
 //   POST /patients/:id/documents  (US-25) publication d'un PDF (corps brut application/pdf, 10 Mo max)
+//   GET /agenda?debut=&clinique=  (US-19) agenda unifié de la semaine, toutes cliniques confondues
+//   GET /alertes, POST /alertes/lues (US-20) annulations et reports des patients
 const crypto = require('crypto');
 const express = require('express');
 const Joi = require('joi');
@@ -213,6 +215,86 @@ router.post('/patients/:id/documents', requirePermission('RESULTAT_PUBLIER'), as
   await journaliserAcces(req, { idPatient, idDocument, action: 'publication_document' });
   const notifications = await notifierDocument(idPatient, req.user.id);
   return res.status(201).json({ idDocument, notifications, message: 'Document publié dans le dossier du patient, qui en a été notifié' });
+});
+
+// US-19 : agenda unifié. Une semaine (lundi à dimanche, heure de Tunis) de tous les créneaux du
+// praticien, dans toutes ses cliniques, avec le rendez-vous actif de chaque créneau réservé.
+const dateIso = Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).custom((v, helpers) => (
+  new Date(`${v}T00:00:00Z`).toISOString().startsWith(v) ? v : helpers.error('any.invalid')
+), 'date du calendrier');
+const agendaSchema = Joi.object({ debut: dateIso, clinique: Joi.string().guid().allow('') });
+
+router.get('/agenda', requirePermission('DISPONIBILITES_GERER'), async (req, res) => {
+  const { error, value } = agendaSchema.validate(req.query, { stripUnknown: true });
+  if (error) return res.status(400).json({ message: 'Paramètres invalides' });
+  const { rows: [s] } = await db.query(
+    `SELECT to_char(date_trunc('week', COALESCE($1::date, (now() AT TIME ZONE 'Africa/Tunis')::date))::date, 'YYYY-MM-DD') AS semaine`,
+    [value.debut || null],
+  );
+  const [cliniques, creneaux] = await Promise.all([
+    db.query(
+      `SELECT c.id_clinique, c.nom, c.ville, pc.actif
+         FROM praticien_clinique pc JOIN cliniques c USING (id_clinique)
+        WHERE pc.id_praticien = $1
+        ORDER BY c.ville`,
+      [req.user.id],
+    ),
+    db.query(
+      `SELECT cr.id_creneau, cr.debut, cr.fin, cr.statut, c.id_clinique, c.nom AS clinique, c.ville,
+              r.id_rdv, r.statut AS statut_rdv, r.origine, r.id_patient, u.nom, u.prenom, pa.numero_dossier,
+              (crd.id_compte_rendu IS NOT NULL) AS compte_rendu
+         FROM creneaux cr
+         JOIN plages_disponibilite p USING (id_plage)
+         JOIN cliniques c ON c.id_clinique = p.id_clinique
+         LEFT JOIN LATERAL (
+           SELECT x.id_rdv, x.statut, x.origine, x.id_patient FROM rendez_vous x
+            WHERE x.id_creneau = cr.id_creneau AND x.statut IN ('planifie', 'honore', 'manque')
+            ORDER BY x.date_creation DESC LIMIT 1) r ON true
+         LEFT JOIN utilisateurs u ON u.id_utilisateur = r.id_patient
+         LEFT JOIN patients pa ON pa.id_utilisateur = r.id_patient
+         LEFT JOIN comptes_rendus crd ON crd.id_rdv = r.id_rdv
+        WHERE p.id_praticien = $1
+          AND ($3::uuid IS NULL OR p.id_clinique = $3)
+          AND cr.debut >= $2::date::timestamp AT TIME ZONE 'Africa/Tunis'
+          AND cr.debut < ($2::date + 7)::timestamp AT TIME ZONE 'Africa/Tunis'
+        ORDER BY cr.debut
+        LIMIT 1000`,
+      [req.user.id, s.semaine, value.clinique || null],
+    ),
+  ]);
+  res.json({ semaine: s.semaine, cliniques: cliniques.rows, creneaux: creneaux.rows });
+});
+
+// US-20 : alertes du praticien (annulation ou report par un patient), les plus récentes d'abord.
+// L'alerte est aussi envoyée par e-mail (US-09 / US-10) ; ici elle s'affiche dans l'agenda.
+router.get('/alertes', requirePermission('DISPONIBILITES_GERER'), async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT n.id_notification, n.date_programmee AS date, n.lue_le,
+            CASE WHEN r.statut = 'annule' THEN 'annulation' WHEN r.id_rdv_origine IS NOT NULL THEN 'report' ELSE 'autre' END AS nature,
+            r.id_rdv, r.statut AS statut_rdv, cr.debut, c.ville, oc.debut AS ancienne_date,
+            u.prenom, u.nom
+       FROM notifications n
+       JOIN rendez_vous r ON r.id_rdv = n.id_rdv
+       JOIN creneaux cr ON cr.id_creneau = r.id_creneau
+       JOIN plages_disponibilite p ON p.id_plage = cr.id_plage
+       JOIN cliniques c ON c.id_clinique = p.id_clinique
+       JOIN utilisateurs u ON u.id_utilisateur = r.id_patient
+       LEFT JOIN rendez_vous o ON o.id_rdv = r.id_rdv_origine
+       LEFT JOIN creneaux oc ON oc.id_creneau = o.id_creneau
+      WHERE n.id_destinataire = $1 AND n.type = 'alerte'
+      ORDER BY n.date_programmee DESC
+      LIMIT 30`,
+    [req.user.id],
+  );
+  res.json({ nonLues: rows.filter((a) => !a.lue_le).length, alertes: rows });
+});
+
+router.post('/alertes/lues', requirePermission('DISPONIBILITES_GERER'), async (req, res) => {
+  const { rowCount } = await db.query(
+    "UPDATE notifications SET lue_le = now() WHERE id_destinataire = $1 AND type = 'alerte' AND lue_le IS NULL",
+    [req.user.id],
+  );
+  res.json({ message: 'Alertes marquées comme lues', lues: rowCount });
 });
 
 module.exports = router;

@@ -146,3 +146,28 @@ textarea { width: 100%; padding: .6rem .7rem; border: 1px solid var(--line); bor
 .texte-compte-rendu { white-space: pre-wrap; background: #F7F8FA; border-radius: 7px; padding: .9rem; font-size: .92rem; }
 .case { display: flex; gap: .5rem; align-items: center; font-weight: 400; margin: .8rem 0; }
 .case input { width: auto; height: auto; margin: 0; }
+/* US-19 / US-20 : agenda multi-sites et alertes */
+.clinique-sousse { --clinique: #0E7490; }
+.clinique-sfax { --clinique: #B45309; }
+.clinique-tunis { --clinique: #7C3AED; }
+.barre-agenda { display: flex; flex-wrap: wrap; gap: .8rem 1.2rem; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.filtres-cliniques { display: flex; gap: .4rem; flex-wrap: wrap; }
+.filtres-cliniques button { width: auto; height: 2rem; margin: 0; padding: 0 .8rem; border: 1px solid #CBD2DC; border-radius: 999px; background: #fff; font-size: .85rem; display: inline-flex; align-items: center; gap: .35rem; }
+.filtres-cliniques button.actif { border-color: var(--navy); background: #EEF2F7; font-weight: 600; }
+.pastille { width: .65rem; height: .65rem; border-radius: 50%; background: var(--clinique, #94A3B8); }
+.semaine { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .5rem; }
+.jour-agenda { min-width: 0; }
+.jour-agenda h3 { font-size: .85rem; text-transform: capitalize; margin: 0 0 .4rem; padding-bottom: .3rem; border-bottom: 2px solid #EEF0F3; }
+.jour-agenda.aujourdhui h3 { border-bottom-color: var(--crimson); color: var(--crimson); }
+.jour-agenda .vide { margin: 0; }
+.creneau-agenda { border-left: 4px solid var(--clinique, #94A3B8); border-radius: 6px; padding: .35rem .5rem; margin-bottom: .35rem; font-size: .8rem; background: #F7F8FA; display: flex; flex-direction: column; gap: .1rem; }
+.creneau-agenda.occupe { background: #fff; box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
+.creneau-agenda .heure { color: var(--muted); font-size: .75rem; }
+.creneau-agenda a { font-weight: 600; overflow-wrap: anywhere; }
+.etiquettes .pill { margin: .15rem .2rem 0 0; font-size: .7rem; }
+.alertes ul { list-style: none; margin: 0; padding: 0; }
+.alertes li { padding: .5rem 0; border-bottom: 1px solid #EEF0F3; font-size: .9rem; }
+.alertes li.lue { color: var(--muted); }
+.entete-alertes { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.entete-alertes h2 { display: flex; align-items: center; gap: .5rem; }
+@media (max-width: 1100px) { .semaine { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

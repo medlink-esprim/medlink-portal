@@ -20,6 +20,7 @@ import MonProfil from './pages/MonProfil.jsx'
 import MesResultats from './pages/MesResultats.jsx'
 import MesPatients from './pages/MesPatients.jsx'
 import DossierPatient from './pages/DossierPatient.jsx'
+import Agenda from './pages/Agenda.jsx'
 // ===== IMPORTS DES PAGES =====
 
 export default function App() {
@@ -47,6 +48,7 @@ export default function App() {
       <Route path="/patient/resultats" element={<MesResultats />} />              {/* US-13 */}
       <Route path="/praticien/patients" element={<MesPatients />} />            {/* US-22 */}
       <Route path="/praticien/patients/:id" element={<DossierPatient />} />     {/* US-23 */}
+      <Route path="/praticien/agenda" element={<Agenda />} />                   {/* US-19, US-20 */}
       {/* ===== ROUTES DES PAGES ===== */}
       <Route path="*" element={<Navigate to="/connexion" replace />} />
     </Routes>
