@@ -69,6 +69,31 @@ function prochainJour(isodow) {
   return d.toISOString().slice(0, 10);
 }
 
+// Rendez-vous créé directement en base (Sprint 4) : plage d'un jour + créneau à 09:00 (heure de Tunis).
+// dansJours < 0 : rendez-vous passé (consultation déjà eue).
+async function creerRdv(patient, praticien, { ville = 'Sousse', dansJours = 2, heure = '09:00', statut = 'planifie', origine = 'en_ligne' } = {}) {
+  const { rows: [p] } = await db.query(
+    `INSERT INTO plages_disponibilite (id_praticien, id_clinique, jour_semaine, heure_debut, heure_fin, duree_creneau, date_debut, date_fin)
+     SELECT $1, c.id_clinique, extract(isodow FROM j)::int, $3::time, $3::time + interval '30 minutes', 30, j, j
+       FROM cliniques c, (SELECT (now() AT TIME ZONE 'Africa/Tunis')::date + $4::int AS j) d
+      WHERE c.ville = $2
+     RETURNING id_plage, date_debut`,
+    [praticien.id, ville, heure, dansJours],
+  );
+  const { rows: [c] } = await db.query(
+    `INSERT INTO creneaux (id_plage, debut, fin, statut)
+     VALUES ($1, ($2::date + $3::time) AT TIME ZONE 'Africa/Tunis', ($2::date + $3::time + interval '30 minutes') AT TIME ZONE 'Africa/Tunis', $4::statut_creneau)
+     RETURNING id_creneau`,
+    [p.id_plage, p.date_debut, heure, statut === 'annule' ? 'libre' : 'reserve'],
+  );
+  const { rows: [r] } = await db.query(
+    `INSERT INTO rendez_vous (id_patient, id_creneau, motif_chiffre, statut, origine)
+     VALUES ($1, $2, $3, $4::statut_rdv, $5::origine_rdv) RETURNING id_rdv`,
+    [patient.id, c.id_creneau, chiffrer('Contrôle annuel', patient.id), statut, origine],
+  );
+  return { idRdv: r.id_rdv, idCreneau: c.id_creneau, idPlage: p.id_plage };
+}
+
 async function nettoyer(...comptes) {
   const ids = comptes.filter(Boolean).map((c) => c.id);
   await db.query(
@@ -79,4 +104,4 @@ async function nettoyer(...comptes) {
   await db.query('DELETE FROM utilisateurs WHERE id_utilisateur = ANY($1::uuid[])', [ids]);
 }
 
-module.exports = { app, db, creerPatient, creerPraticien, creerAdmin, connecter, idClinique, prochainJour, nettoyer };
+module.exports = { app, db, creerPatient, creerPraticien, creerAdmin, connecter, idClinique, prochainJour, creerRdv, nettoyer };
