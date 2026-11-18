@@ -4,6 +4,7 @@
 //   GET /patients?q=              (US-22) recherche parmi mes patients (nom ou numéro de dossier)
 //   GET /patients/:id/dossier     (US-23) dossier d'un patient reçu, accès journalisé (US-47)
 //   POST /rendez-vous/:id/compte-rendu (US-24) compte-rendu chiffré, publié en PDF dans le dossier
+//   POST /patients/:id/documents  (US-25) publication d'un PDF (corps brut application/pdf, 10 Mo max)
 const crypto = require('crypto');
 const express = require('express');
 const Joi = require('joi');
@@ -12,7 +13,7 @@ const validate = require('../middleware/validate');
 const { requirePermission, refuser } = require('../middleware/auth');
 const { chiffrer, dechiffrer } = require('../security/chiffrement');
 const { publierDocument, pdfTexte } = require('../services/stockage');
-const { detailsRdv } = require('../services/notifications');
+const { detailsRdv, notifierDocument } = require('../services/notifications');
 const { aRelationDeSoins } = require('../security/soins');
 const { journaliserAcces } = require('../security/acces');
 
@@ -180,6 +181,38 @@ router.post('/rendez-vous/:id/compte-rendu', requirePermission('COMPTE_RENDU_RED
     }
   }
   return res.status(201).json({ id: outcome.id, idDocument, message: visiblePatient ? 'Compte-rendu enregistré et publié dans le dossier du patient' : 'Compte-rendu enregistré (non visible du patient)' });
+});
+
+// US-25 : publication d'un résultat ou d'un document dans le dossier d'un patient suivi.
+// Le PDF arrive en corps brut (Content-Type: application/pdf) ; type et titre dans les en-têtes
+// X-Document-Type et X-Document-Titre (titre encodé avec encodeURIComponent).
+// Contrôles : permission, relation de soins, signature %PDF-, taille (10 Mo), puis chiffrement (US-13),
+// journal des accès (US-47) et notification du patient sans aucune donnée médicale (US-08 / US-12).
+const TYPES_PUBLIABLES = ['resultat', 'ordonnance', 'compte_rendu', 'autre'];
+const fichierPdf = express.raw({ type: 'application/pdf', limit: '10mb' });
+
+router.post('/patients/:id/documents', requirePermission('RESULTAT_PUBLIER'), async (req, res, next) => {
+  const idPatient = req.params.id;
+  if (!estUuid(idPatient)) return res.status(404).json({ message: 'Patient introuvable' });
+  if (!(await aRelationDeSoins(req.user.id, idPatient))) {
+    return refuser(req, res, `publication dans le dossier du patient ${idPatient} sans relation de soins`);
+  }
+  return next();
+}, fichierPdf, async (req, res) => {
+  const idPatient = req.params.id;
+  const type = req.get('X-Document-Type');
+  let titre = '';
+  try { titre = decodeURIComponent(req.get('X-Document-Titre') || '').trim(); } catch { titre = ''; }
+  const contenu = req.body;
+  if (!Buffer.isBuffer(contenu) || contenu.length === 0) return res.status(415).json({ message: 'Envoyez un fichier PDF' });
+  if (contenu.subarray(0, 5).toString('latin1') !== '%PDF-') return res.status(415).json({ message: "Le fichier n'est pas un PDF valide" });
+  if (!TYPES_PUBLIABLES.includes(type)) return res.status(400).json({ message: 'Type de document invalide' });
+  if (titre.length < 3 || titre.length > 120) return res.status(400).json({ message: 'Le titre doit contenir de 3 à 120 caractères' });
+
+  const idDocument = await publierDocument({ idPatient, type, titre, contenu, idAuteur: req.user.id });
+  await journaliserAcces(req, { idPatient, idDocument, action: 'publication_document' });
+  const notifications = await notifierDocument(idPatient, req.user.id);
+  return res.status(201).json({ idDocument, notifications, message: 'Document publié dans le dossier du patient, qui en a été notifié' });
 });
 
 module.exports = router;
