@@ -138,3 +138,11 @@ textarea { width: 100%; padding: .6rem .7rem; border: 1px solid var(--line); bor
 .identite dt { color: var(--muted); }
 .identite dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 @media (max-width: 860px) { .two-cols-dossier { grid-template-columns: 1fr; } }
+/* US-24 : compte-rendu */
+.btn-mini { width: auto; height: 2rem; padding: 0 .8rem; margin: 0; font-size: .85rem; }
+.compte-rendu { margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid #EEF0F3; }
+.compte-rendu h3 { font-size: 1rem; margin: 0 0 .3rem; color: var(--navy); }
+.compte-rendu textarea { width: 100%; font: inherit; padding: .7rem; border: 1px solid #CBD2DC; border-radius: 7px; resize: vertical; }
+.texte-compte-rendu { white-space: pre-wrap; background: #F7F8FA; border-radius: 7px; padding: .9rem; font-size: .92rem; }
+.case { display: flex; gap: .5rem; align-items: center; font-weight: 400; margin: .8rem 0; }
+.case input { width: auto; height: auto; margin: 0; }

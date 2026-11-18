@@ -3,11 +3,16 @@
 // Montée sur /api/praticien :
 //   GET /patients?q=              (US-22) recherche parmi mes patients (nom ou numéro de dossier)
 //   GET /patients/:id/dossier     (US-23) dossier d'un patient reçu, accès journalisé (US-47)
+//   POST /rendez-vous/:id/compte-rendu (US-24) compte-rendu chiffré, publié en PDF dans le dossier
+const crypto = require('crypto');
 const express = require('express');
 const Joi = require('joi');
 const db = require('../db');
+const validate = require('../middleware/validate');
 const { requirePermission, refuser } = require('../middleware/auth');
-const { dechiffrer } = require('../security/chiffrement');
+const { chiffrer, dechiffrer } = require('../security/chiffrement');
+const { publierDocument, pdfTexte } = require('../services/stockage');
+const { detailsRdv } = require('../services/notifications');
 const { aRelationDeSoins } = require('../security/soins');
 const { journaliserAcces } = require('../security/acces');
 
@@ -70,11 +75,14 @@ router.get('/patients/:id/dossier', requirePermission('DOSSIER_PATIENTS'), async
     ),
     // rendez-vous de ce patient AVEC le praticien connecté uniquement
     db.query(
-      `SELECT r.id_rdv, r.statut, r.origine, r.motif_chiffre, cr.debut, cr.fin, c.nom AS clinique, c.ville
+      `SELECT r.id_rdv, r.statut, r.origine, r.motif_chiffre, cr.debut, cr.fin, c.nom AS clinique, c.ville,
+              crd.id_compte_rendu, crd.contenu_chiffre, crd.visible_patient, crd.date_redaction,
+              (r.statut IN ('planifie', 'honore') AND cr.debut <= now() AND crd.id_compte_rendu IS NULL) AS redigeable
          FROM rendez_vous r
          JOIN creneaux cr USING (id_creneau)
          JOIN plages_disponibilite p USING (id_plage)
          JOIN cliniques c ON c.id_clinique = p.id_clinique
+         LEFT JOIN comptes_rendus crd ON crd.id_rdv = r.id_rdv
         WHERE r.id_patient = $1 AND p.id_praticien = $2
         ORDER BY cr.debut DESC
         LIMIT 100`,
@@ -91,13 +99,87 @@ router.get('/patients/:id/dossier', requirePermission('DOSSIER_PATIENTS'), async
       [idPatient],
     ),
   ]);
-  // motif chiffré lié à l'identifiant du patient (US-43) ; illisible => null plutôt qu'une erreur
-  const lireMotif = (valeur) => { try { return dechiffrer(valeur, idPatient); } catch { return null; } };
+  // US-43 : motif lié à l'identifiant du patient, compte-rendu au sien ; illisible => null plutôt qu'une erreur
+  const lire = (valeur, contexte) => { try { return dechiffrer(valeur, contexte); } catch { return null; } };
   return res.json({
     patient: patient.rows[0],
-    rendezVous: rdv.rows.map(({ motif_chiffre: chiffre, ...r }) => ({ ...r, motif: lireMotif(chiffre) })),
+    rendezVous: rdv.rows.map(({ motif_chiffre: chiffre, id_compte_rendu: idCr, contenu_chiffre: contenu, visible_patient: visible, date_redaction: date, ...r }) => ({
+      ...r,
+      motif: lire(chiffre, idPatient),
+      // US-24 : texte du compte-rendu, chiffré avec son propre identifiant comme contexte
+      compteRendu: idCr ? { id: idCr, contenu: lire(contenu, idCr), visiblePatient: visible, date } : null,
+    })),
     documents: documents.rows,
   });
+});
+
+// US-24 : compte-rendu de consultation. Un seul par rendez-vous, rédigé par SON praticien une fois
+// la consultation commencée. Le texte est chiffré (AES-256-GCM) ; s'il est visible du patient, une
+// version PDF est publiée dans son dossier (« Mes résultats »). Le rendez-vous passe à « honoré ».
+const compteRenduSchema = Joi.object({
+  contenu: Joi.string().trim().min(10).max(8000).required(),
+  visiblePatient: Joi.boolean().default(true),
+});
+
+router.post('/rendez-vous/:id/compte-rendu', requirePermission('COMPTE_RENDU_REDIGER'), validate(compteRenduSchema), async (req, res) => {
+  if (!estUuid(req.params.id)) return res.status(404).json({ message: 'Rendez-vous introuvable' });
+  const { contenu, visiblePatient } = req.body;
+  let outcome;
+  try {
+    outcome = await db.withTransaction(async (client) => {
+      const { rows: [r] } = await client.query(
+        `SELECT r.id_rdv, r.id_patient, r.statut, p.id_praticien, cr.debut <= now() AS commence,
+                EXISTS (SELECT 1 FROM comptes_rendus x WHERE x.id_rdv = r.id_rdv) AS existe
+           FROM rendez_vous r
+           JOIN creneaux cr USING (id_creneau)
+           JOIN plages_disponibilite p USING (id_plage)
+          WHERE r.id_rdv = $1
+            FOR UPDATE OF r`,
+        [req.params.id],
+      );
+      if (!r) return { status: 404, body: { message: 'Rendez-vous introuvable' } };
+      if (r.id_praticien !== req.user.id) return { refus: true };   // US-39 : contrôle de propriété
+      if (!['planifie', 'honore'].includes(r.statut)) return { status: 409, body: { message: 'Ce rendez-vous a été annulé, reporté ou manqué : pas de compte-rendu.' } };
+      if (!r.commence) return { status: 422, body: { message: 'Le compte-rendu se rédige une fois la consultation commencée.' } };
+      if (r.existe) return { status: 409, body: { message: 'Un compte-rendu existe déjà pour cette consultation.' } };
+
+      const id = crypto.randomUUID();
+      await client.query(
+        `INSERT INTO comptes_rendus (id_compte_rendu, id_rdv, id_praticien, contenu_chiffre, visible_patient)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [id, r.id_rdv, req.user.id, chiffrer(contenu, id), visiblePatient],
+      );
+      await client.query("UPDATE rendez_vous SET statut = 'honore' WHERE id_rdv = $1 AND statut = 'planifie'", [r.id_rdv]);
+      await journaliserAcces(req, { idPatient: r.id_patient, action: 'redaction_compte_rendu' }, client);
+      return { status: 201, id, idPatient: r.id_patient, idRdv: r.id_rdv };
+    });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ message: 'Un compte-rendu existe déjà pour cette consultation.' });
+    throw err;
+  }
+  if (outcome.refus) return refuser(req, res, `compte-rendu du rendez-vous ${req.params.id} d'un autre praticien`);
+  if (outcome.status !== 201) return res.status(outcome.status).json(outcome.body);
+
+  let idDocument = null;
+  if (visiblePatient) {
+    try {
+      const d = await detailsRdv(outcome.idRdv);
+      const titre = `Compte-rendu de consultation du ${d.debut.toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis' })}`;
+      const pdf = pdfTexte(titre, [
+        `Patient : ${d.patient_prenom} ${d.patient_nom}`,
+        `Praticien : ${d.dr} (${d.specialite})`,
+        `Clinique : ${d.clinique}, le ${d.date} à ${d.heure}`,
+        '',
+        ...contenu.split(/\r?\n/),
+      ]);
+      idDocument = await publierDocument({ idPatient: outcome.idPatient, type: 'compte_rendu', titre, contenu: pdf, idAuteur: req.user.id });
+      await db.query('UPDATE comptes_rendus SET id_document = $2 WHERE id_compte_rendu = $1', [outcome.id, idDocument]);
+    } catch (err) {
+      console.error(`Compte-rendu ${outcome.id} enregistré mais PDF non publié : ${err.message}`);
+      return res.status(201).json({ id: outcome.id, idDocument: null, message: "Compte-rendu enregistré. La version PDF n'a pas pu être publiée dans le dossier du patient." });
+    }
+  }
+  return res.status(201).json({ id: outcome.id, idDocument, message: visiblePatient ? 'Compte-rendu enregistré et publié dans le dossier du patient' : 'Compte-rendu enregistré (non visible du patient)' });
 });
 
 module.exports = router;
