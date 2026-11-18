@@ -1,6 +1,7 @@
 // US-22 : « Mes patients » — le praticien retrouve un de SES patients par nom ou numéro de dossier.
 // Seuls les patients ayant (eu) un rendez-vous avec lui sont renvoyés par l'API.
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api.js'
 import AppLayout from '../components/AppLayout.jsx'
 import Alert from '../components/Alert.jsx'
@@ -34,8 +35,7 @@ function Contenu() {
       {patients && patients.length > 0 && (
         <table className="table">
           <thead>
-            <tr><th>Patient</th><th>N° de dossier</th><th>Naissance</th><th>Dernier RDV</th><th>Prochain RDV</th>
-              {/* ===== COLONNE ACTIONS ===== */}</tr>
+            <tr><th>Patient</th><th>N° de dossier</th><th>Naissance</th><th>Dernier RDV</th><th>Prochain RDV</th><th></th></tr>
           </thead>
           <tbody>
             {patients.map((p) => (
@@ -45,7 +45,7 @@ function Contenu() {
                 <td>{fmtNaissance(p.date_naissance)}</td>
                 <td>{fmtDate(p.dernier_rdv)}</td>
                 <td>{p.prochain_rdv ? <span className="pill pill-ok">{fmtDate(p.prochain_rdv)}</span> : '—'}</td>
-                {/* ===== ACTIONS SUR UN PATIENT ===== */}
+                <td className="right"><Link className="btn-secondary btn-auto btn-link" to={`/praticien/patients/${p.id_patient}`}>Ouvrir le dossier</Link></td>
               </tr>
             ))}
           </tbody>
