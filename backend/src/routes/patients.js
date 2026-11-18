@@ -22,7 +22,7 @@ const router = express.Router();
 // US-11 : historique des rendez-vous du patient connecté
 router.get('/moi/rendez-vous', requirePermission('RDV_PRENDRE'), async (req, res) => {
   const { rows } = await db.query(
-    `SELECT r.id_rdv, r.statut, r.id_rdv_origine, r.date_annulation, r.date_creation,
+    `SELECT r.id_rdv, r.statut, r.origine, r.id_rdv_origine, r.date_annulation, r.date_creation,
             cr.debut, cr.fin, c.nom AS clinique, c.ville,
             p.id_praticien, u.nom AS praticien_nom, u.prenom AS praticien_prenom, pr.specialite,
             (r.statut = 'planifie' AND cr.debut - now() >= interval '24 hours') AS modifiable

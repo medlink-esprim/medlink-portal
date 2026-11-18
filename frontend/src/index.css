@@ -181,3 +181,10 @@ textarea { width: 100%; padding: .6rem .7rem; border: 1px solid var(--line); bor
 .confirmation { border: 1px solid #F3C4CA; background: #FDF2F3; border-radius: 8px; padding: .8rem 1rem; }
 .confirmation p { margin-top: 0; font-size: .9rem; }
 @media (max-width: 960px) { .two-cols-comptes { grid-template-columns: 1fr; } .filtres-comptes { grid-template-columns: 1fr; } }
+/* US-30 : rendez-vous pris par l'accueil */
+.resultats-patients { list-style: none; padding: 0; margin: .5rem 0 0; }
+.resultats-patients button { width: 100%; height: auto; margin: 0 0 .3rem; padding: .6rem .8rem; text-align: left; background: #F7F8FA; border: 1px solid #EEF0F3; border-radius: 7px; font-weight: 400; }
+.resultats-patients button:hover { border-color: var(--navy); }
+.resultats-patients .pill { margin-left: .4rem; }
+.patient-choisi { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.navigation-jours { margin: .8rem 0; }

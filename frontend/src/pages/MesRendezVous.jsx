@@ -101,7 +101,7 @@ function Contenu() {
                 <td><strong>{dateHeure(r.debut)}</strong></td>
                 <td>Dr {r.praticien_prenom} {r.praticien_nom}<br /><span className="muted">{r.specialite}</span></td>
                 <td>{r.ville}</td>
-                <td><Statut r={r} /></td>
+                <td><Statut r={r} />{r.origine === 'accueil' && <span className="pill pill-new">Pris par l'accueil</span>}</td>
                 <td className="right">
                   {tab === 'avenir' && (r.modifiable ? (
                     aAnnuler === r.id_rdv ? (
