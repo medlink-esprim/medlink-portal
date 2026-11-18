@@ -143,3 +143,45 @@ test('US-24 : consultation future => 422 ; rendez-vous d\'un autre praticien => 
   warn.mockRestore();
   expect((await agentDr.post(`/api/praticien/rendez-vous/${rdvAmine}/compte-rendu`).send({ contenu: 'court' })).status).toBe(400);
 });
+
+const envoyerPdf = (agent, idPatient, contenu, { type = 'resultat', titre = 'Bilan lipidique' } = {}) => agent
+  .post(`/api/praticien/patients/${idPatient}/documents`)
+  .set('Content-Type', 'application/pdf')
+  .set('X-Document-Type', type)
+  .set('X-Document-Titre', encodeURIComponent(titre))
+  .send(contenu);
+
+test('US-25 : publication d\'un résultat, visible et notifié au patient (sans donnée médicale)', async () => {
+  const pdf = pdfExemple('Bilan lipidique', ['Cholestérol total : 2,10 g/L']);
+  const res = await envoyerPdf(agentDr, amine.id, pdf, { titre: 'Bilan lipidique — novembre' });
+  expect(res.status).toBe(201);
+  fichiers.push(res.body.idDocument);
+
+  const docs = (await (await connecter(amine)).get('/api/patients/moi/documents')).body;
+  expect(docs).toEqual([expect.objectContaining({ id_document: res.body.idDocument, type: 'resultat', titre: 'Bilan lipidique — novembre' })]);
+  const { rows: [ligne] } = await db.query('SELECT * FROM documents_medicaux WHERE id_document = $1', [res.body.idDocument]);
+  expect((await lireDocument(ligne)).equals(pdf)).toBe(true);
+  expect(ligne.id_auteur).toBe(dr.id);
+
+  const { rows: notif } = await db.query("SELECT canal, statut FROM notifications WHERE id_destinataire = $1 AND type = 'resultat'", [amine.id]);
+  expect(notif).toEqual([{ canal: 'email', statut: 'envoyee' }]);
+  const { rows: [j] } = await db.query("SELECT action FROM journal_acces_dossiers WHERE id_document = $1", [res.body.idDocument]);
+  expect(j.action).toBe('publication_document');
+});
+
+test('US-25 : refus d\'un fichier qui n\'est pas un PDF, d\'un titre absent, d\'un fichier trop gros', async () => {
+  expect((await envoyerPdf(agentDr, amine.id, Buffer.from('MZ pas un pdf'))).status).toBe(415);
+  expect((await envoyerPdf(agentDr, amine.id, pdfExemple('x'), { titre: '' })).status).toBe(400);
+  expect((await envoyerPdf(agentDr, amine.id, pdfExemple('x'), { type: 'virus' })).status).toBe(400);
+  const gros = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(11 * 1024 * 1024)]);
+  expect((await envoyerPdf(agentDr, amine.id, gros)).status).toBe(413);
+  const json = await agentDr.post(`/api/praticien/patients/${amine.id}/documents`).send({ contenu: 'x' });
+  expect(json.status).toBe(415);
+});
+
+test('US-25 : pas de publication sans relation de soins ni par un patient', async () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  expect((await envoyerPdf(agentDr, nour.id, pdfExemple('x'))).status).toBe(403);
+  expect((await envoyerPdf(await connecter(amine), amine.id, pdfExemple('x'))).status).toBe(403);
+  warn.mockRestore();
+});

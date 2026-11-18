@@ -5,11 +5,12 @@ export const EVENEMENT_ACTIVITE = 'medlink:activite'
 
 let refreshEnCours = null
 
-async function appel(path, method, body) {
+// fichier (US-25) : envoyé tel quel (ex. PDF), avec ses propres en-têtes ; sinon corps JSON
+async function appel(path, method, body, fichier, entetes = {}) {
   const res = await fetch(`/api${path}`, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : {},
-    body: body ? JSON.stringify(body) : undefined,
+    headers: fichier ? { 'Content-Type': fichier.type || 'application/octet-stream', ...entetes } : body ? { 'Content-Type': 'application/json' } : {},
+    body: fichier || (body ? JSON.stringify(body) : undefined),
     credentials: 'same-origin',
   })
   let data = null
@@ -17,13 +18,13 @@ async function appel(path, method, body) {
   return { ok: res.ok, status: res.status, data }
 }
 
-export async function api(path, { method = 'GET', body } = {}) {
-  let res = await appel(path, method, body)
+export async function api(path, { method = 'GET', body, fichier, entetes } = {}) {
+  let res = await appel(path, method, body, fichier, entetes)
   if (res.status === 401 && res.data?.code === 'ACCES_EXPIRE') {
     // plusieurs appels simultanés partagent le même rafraîchissement
     refreshEnCours = refreshEnCours || appel('/auth/refresh', 'POST').finally(() => { refreshEnCours = null })
     const refresh = await refreshEnCours
-    if (refresh.ok) res = await appel(path, method, body)
+    if (refresh.ok) res = await appel(path, method, body, fichier, entetes)
   }
   if (res.ok) window.dispatchEvent(new Event(EVENEMENT_ACTIVITE))
   return res

@@ -2,6 +2,7 @@
 // L'API refuse (403 journalisé) tout patient sans rendez-vous avec le praticien ; chaque ouverture
 // du dossier et chaque document consulté sont enregistrés dans le journal des accès (US-47).
 // US-24 : rédaction du compte-rendu d'une consultation commencée (une fois par rendez-vous).
+// US-25 : publication d'un résultat ou d'un document (PDF, 10 Mo maximum) ; le patient est notifié.
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api.js'
@@ -136,7 +137,7 @@ function Contenu() {
               ))}
             </ul>
           </section>
-          {/* ===== PUBLICATION D'UN DOCUMENT ===== */}
+          <PublierDocument idPatient={patient.id_patient} onPublie={charger} />
         </div>
         <div className="colonne">
           <section className="card">
@@ -153,6 +154,51 @@ function Contenu() {
         </div>
       </div>
     </>
+  )
+}
+
+const TYPES_PUBLIABLES = [['resultat', "Résultat d'examen"], ['ordonnance', 'Ordonnance'], ['autre', 'Autre document']]
+const TAILLE_MAX = 10 * 1024 * 1024
+
+function PublierDocument({ idPatient, onPublie }) {
+  const [type, setType] = useState('resultat')
+  const [titre, setTitre] = useState('')
+  const [fichier, setFichier] = useState(null)
+  const [message, setMessage] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  async function publier(e) {
+    e.preventDefault()
+    if (!fichier || (fichier.type !== 'application/pdf' && !/\.pdf$/i.test(fichier.name))) return setMessage({ type: 'error', text: 'Choisissez un fichier PDF.' })
+    if (fichier.size > TAILLE_MAX) return setMessage({ type: 'error', text: 'Le fichier dépasse 10 Mo.' })
+    setBusy(true)
+    const res = await api(`/praticien/patients/${idPatient}/documents`, {
+      method: 'POST',
+      fichier,
+      entetes: { 'Content-Type': 'application/pdf', 'X-Document-Type': type, 'X-Document-Titre': encodeURIComponent(titre.trim()) },
+    })
+    setBusy(false)
+    setMessage({ type: res.ok ? 'ok' : 'error', text: res.data?.message || 'Publication impossible' })
+    if (res.ok) { setTitre(''); setFichier(null); e.target.reset(); onPublie() }
+  }
+
+  return (
+    <form className="card" onSubmit={publier}>
+      <h2>Publier un résultat ou un document</h2>
+      <div className="row">
+        <div><label htmlFor="type-doc">Type</label>
+          <select id="type-doc" value={type} onChange={(e) => setType(e.target.value)}>
+            {TYPES_PUBLIABLES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select></div>
+        <div><label htmlFor="titre-doc">Titre</label>
+          <input id="titre-doc" required minLength={3} maxLength={120} placeholder="ex. Bilan lipidique" value={titre} onChange={(e) => setTitre(e.target.value)} /></div>
+      </div>
+      <label htmlFor="fichier-doc">Fichier PDF (10 Mo maximum)</label>
+      <input id="fichier-doc" type="file" accept="application/pdf,.pdf" required onChange={(e) => setFichier(e.target.files[0] || null)} />
+      {message && <Alert type={message.type}>{message.text}</Alert>}
+      <div className="actions"><button className="btn-primary btn-auto" disabled={busy}>{busy ? 'Publication…' : 'Publier dans le dossier'}</button></div>
+      <p className="small-note">Le fichier est chiffré avant d'être stocké. Le patient reçoit une notification sans aucune donnée médicale.</p>
+    </form>
   )
 }
 

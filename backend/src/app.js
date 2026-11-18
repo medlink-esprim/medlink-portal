@@ -53,6 +53,9 @@ app.use('/api', (req, res) => res.status(404).json({ message: 'Ressource introuv
 // Gestionnaire d'erreurs : aucun détail technique n'est renvoyé au client
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
+  // US-25 : corps trop volumineux (PDF > 10 Mo, JSON > 100 ko) ou illisible : erreur du client, pas du serveur
+  if (err.type === 'entity.too.large') return res.status(413).json({ message: 'Fichier ou requête trop volumineux (10 Mo maximum pour un PDF)' });
+  if (err.status >= 400 && err.status < 500 && err.expose) return res.status(err.status).json({ message: 'Requête invalide' });
   console.error(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} :`, err.message);
   res.status(500).json({ message: 'Erreur interne du serveur' });
 });
