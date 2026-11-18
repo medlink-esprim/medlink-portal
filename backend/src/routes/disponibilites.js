@@ -20,7 +20,8 @@ router.get('/cliniques', async (req, res) => {
   const { rows } = await db.query(
     `SELECT c.id_clinique, c.nom, c.ville
        FROM praticien_clinique pc JOIN cliniques c USING (id_clinique)
-      WHERE pc.id_praticien = $1 ORDER BY c.ville`,
+      WHERE pc.id_praticien = $1 AND pc.actif   -- US-29 : affectations en cours
+      ORDER BY c.ville`,
     [req.user.id],
   );
   res.json(rows);
@@ -75,7 +76,7 @@ router.post('/', validate(schema), async (req, res) => {
 
   // US-39 : publier dans une clinique où l'on n'est pas affecté est refusé et journalisé
   const affecte = await db.query(
-    'SELECT 1 FROM praticien_clinique WHERE id_praticien = $1 AND id_clinique = $2',
+    'SELECT 1 FROM praticien_clinique WHERE id_praticien = $1 AND id_clinique = $2 AND actif',   // US-29
     [idPraticien, b.idClinique],
   );
   if (!affecte.rowCount) return refuser(req, res, `clinique ${b.idClinique} non affectée au praticien`);
