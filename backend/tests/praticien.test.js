@@ -2,9 +2,9 @@
 //   docker compose exec api npx jest tests/praticien.test.js
 const fs = require('fs/promises');
 const { db, creerPatient, creerPraticien, connecter, creerRdv, nettoyer } = require('./outils');
-const { publierDocument, pdfExemple, cheminAbsolu } = require('../src/services/stockage');
+const { publierDocument, pdfExemple, cheminAbsolu, lireDocument } = require('../src/services/stockage');
 
-let dr; let autreDr; let salma; let amine; let nour; let agentDr;
+let dr; let autreDr; let salma; let amine; let nour; let agentDr; let rdvSalma; let rdvAmine;
 const fichiers = [];
 
 beforeAll(async () => {
@@ -13,8 +13,8 @@ beforeAll(async () => {
   salma = await creerPatient('Salma', 'Ben Ali');
   amine = await creerPatient('Amine', 'Jaziri');
   nour = await creerPatient('Nour', 'Hammami');
-  await creerRdv(salma, dr, { dansJours: -20, statut: 'honore' });
-  await creerRdv(amine, dr, { ville: 'Sfax', dansJours: 3 });
+  rdvSalma = (await creerRdv(salma, dr, { dansJours: -20, statut: 'honore' })).idRdv;
+  rdvAmine = (await creerRdv(amine, dr, { ville: 'Sfax', dansJours: 3 })).idRdv;
   await creerRdv(nour, autreDr, { ville: 'Tunis', dansJours: 2 });   // patiente d'un autre praticien
   agentDr = await connecter(dr);
 });
@@ -97,4 +97,49 @@ test('US-23 : sans rendez-vous avec le patient => 403 journalisé, aucune donné
   const { rows } = await db.query('SELECT count(*)::int AS n FROM journal_acces_dossiers WHERE id_utilisateur = $1 AND id_patient = $2', [dr.id, nour.id]);
   expect(rows[0].n).toBe(0);
   expect((await agentDr.get('/api/praticien/patients/pas-un-uuid/dossier')).status).toBe(404);
+});
+
+test('US-24 : compte-rendu chiffré, visible du patient en PDF, rendez-vous honoré', async () => {
+  const passe = (await creerRdv(salma, dr, { dansJours: -2 })).idRdv;   // consultation passée, encore « planifiée »
+  const texte = 'Essoufflement à l\'effort. ECG normal, tension 12/8.\nConduite : bilan lipidique, contrôle dans 3 mois.';
+  const res = await agentDr.post(`/api/praticien/rendez-vous/${passe}/compte-rendu`).send({ contenu: texte });
+  expect(res.status).toBe(201);
+  expect(res.body.idDocument).toBeTruthy();
+  fichiers.push(res.body.idDocument);
+
+  const { rows: [cr] } = await db.query('SELECT contenu_chiffre FROM comptes_rendus WHERE id_compte_rendu = $1', [res.body.id]);
+  expect(cr.contenu_chiffre.toString('latin1')).not.toContain('ECG');   // chiffré au repos (US-43)
+  const { rows: [r] } = await db.query('SELECT statut FROM rendez_vous WHERE id_rdv = $1', [passe]);
+  expect(r.statut).toBe('honore');
+
+  // le patient le voit dans « Mes résultats »
+  const docs = (await (await connecter(salma)).get('/api/patients/moi/documents')).body;
+  const doc = docs.find((d) => d.id_document === res.body.idDocument);
+  expect(doc).toMatchObject({ type: 'compte_rendu' });
+  const { rows: [ligne] } = await db.query('SELECT * FROM documents_medicaux WHERE id_document = $1', [res.body.idDocument]);
+  expect(ligne.id_auteur).toBe(dr.id);
+  expect((await lireDocument(ligne)).toString('latin1')).toContain('ECG normal');
+
+  // le praticien le relit dans le dossier
+  const dossier = await agentDr.get(`/api/praticien/patients/${salma.id}/dossier`);
+  expect(dossier.body.rendezVous.find((x) => x.id_rdv === passe).compteRendu).toMatchObject({ contenu: texte, visiblePatient: true });
+
+  // un seul compte-rendu par consultation
+  expect((await agentDr.post(`/api/praticien/rendez-vous/${passe}/compte-rendu`).send({ contenu: texte })).status).toBe(409);
+});
+
+test('US-24 : non visible du patient => aucun document publié', async () => {
+  const res = await agentDr.post(`/api/praticien/rendez-vous/${rdvSalma}/compte-rendu`).send({ contenu: 'Note interne au praticien.', visiblePatient: false });
+  expect(res.status).toBe(201);
+  expect(res.body.idDocument).toBeNull();
+});
+
+test('US-24 : consultation future => 422 ; rendez-vous d\'un autre praticien => 403', async () => {
+  expect((await agentDr.post(`/api/praticien/rendez-vous/${rdvAmine}/compte-rendu`).send({ contenu: 'Trop tôt pour un compte-rendu.' })).status).toBe(422);
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  const autre = await connecter(autreDr);
+  expect((await autre.post(`/api/praticien/rendez-vous/${rdvAmine}/compte-rendu`).send({ contenu: 'Pas mon patient du tout.' })).status).toBe(403);
+  expect((await (await connecter(salma)).post(`/api/praticien/rendez-vous/${rdvAmine}/compte-rendu`).send({ contenu: 'Je suis patiente ici.' })).status).toBe(403);
+  warn.mockRestore();
+  expect((await agentDr.post(`/api/praticien/rendez-vous/${rdvAmine}/compte-rendu`).send({ contenu: 'court' })).status).toBe(400);
 });
