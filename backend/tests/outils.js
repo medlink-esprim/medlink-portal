@@ -52,6 +52,16 @@ async function creerAdmin(prenom = 'Sami', nom = 'Bouazizi') {
   return u;
 }
 
+// Agent administratif (sans MFA) rattaché à la clinique de la ville donnée (Sprint 4)
+async function creerAgent(ville = 'Sousse', prenom = 'Rim', nom = 'Mansour') {
+  const u = await creerUtilisateur('AGENT_ADMIN', prenom, nom);
+  await db.query(
+    "INSERT INTO personnels (id_utilisateur, fonction, id_clinique) SELECT $1, 'Accueil', id_clinique FROM cliniques WHERE ville = $2",
+    [u.id, ville],
+  );
+  return u;
+}
+
 // Renvoie un agent Supertest connecté (avec le code TOTP pour un praticien)
 async function connecter(u) {
   const agent = request.agent(app);
@@ -104,4 +114,4 @@ async function nettoyer(...comptes) {
   await db.query('DELETE FROM utilisateurs WHERE id_utilisateur = ANY($1::uuid[])', [ids]);
 }
 
-module.exports = { app, db, creerPatient, creerPraticien, creerAdmin, connecter, idClinique, prochainJour, creerRdv, nettoyer };
+module.exports = { app, db, creerPatient, creerPraticien, creerAdmin, creerAgent, connecter, idClinique, prochainJour, creerRdv, nettoyer };
