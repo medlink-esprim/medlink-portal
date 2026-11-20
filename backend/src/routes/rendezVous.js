@@ -10,6 +10,7 @@ const validate = require('../middleware/validate');
 const { requireAuth, requirePermission, refuser } = require('../middleware/auth');
 const { chiffrer, dechiffrer } = require('../security/chiffrement');
 const { notifierPatient, notifierPraticien } = require('../services/notifications');
+const { conflitPatient, libererCreneau } = require('../services/agenda');
 
 const router = express.Router();
 const DELAI_H = 24;   // annulation et report possibles jusqu'à 24 h avant le rendez-vous
@@ -28,6 +29,8 @@ router.post('/', requirePermission('RDV_PRENDRE'), validate(schema), async (req,
   const idPatient = req.user.id;   // extrait du jeton, jamais du corps : impossible de réserver au nom d'un autre
   try {
     const outcome = await db.withTransaction(async (client) => {
+      // pas deux rendez-vous qui se chevauchent, un seul par jour chez le même praticien (verrou patient)
+      const conflit = await conflitPatient(client, { idPatient, idCreneau: req.body.idCreneau });
       // verrou sur la ligne du créneau : une seconde transaction attend la fin de la première
       const { rows: [c] } = await client.query(
         'SELECT statut, debut > now() AS a_venir FROM creneaux WHERE id_creneau = $1 FOR UPDATE',
@@ -35,6 +38,7 @@ router.post('/', requirePermission('RDV_PRENDRE'), validate(schema), async (req,
       );
       if (!c) return { status: 404, body: { message: 'Créneau introuvable' } };
       if (c.statut !== 'libre' || !c.a_venir) return { status: 409, body: PRIS };
+      if (conflit) return conflit;
 
       const { rows: [rdv] } = await client.query(
         `INSERT INTO rendez_vous (id_patient, id_creneau, motif_chiffre, statut, origine)
@@ -95,7 +99,7 @@ router.patch('/:id/annulation', requirePermission('RDV_PRENDRE'), async (req, re
     if (r.statut !== 'planifie') return { status: 409, body: NON_MODIFIABLE };
     if (!r.delai_ok) return { status: 422, body: TROP_TARD };
     await client.query("UPDATE rendez_vous SET statut = 'annule', date_annulation = now() WHERE id_rdv = $1", [r.id_rdv]);
-    await client.query("UPDATE creneaux SET statut = 'libre' WHERE id_creneau = $1", [r.id_creneau]);
+    await libererCreneau(client, r.id_creneau);   // reste bloqué pendant une absence du praticien
     return { status: 200, body: { message: 'Rendez-vous annulé' } };
   });
   if (outcome.refus) return refuser(req, res, `annulation du rendez-vous ${req.params.id} d'un autre patient`);
@@ -114,6 +118,8 @@ router.patch('/:id/report', requirePermission('RDV_PRENDRE'), validate(reportSch
   if (!estUuid(req.params.id)) return res.status(404).json({ message: 'Rendez-vous introuvable' });
   try {
     const outcome = await db.withTransaction(async (client) => {
+      // verrou patient d'abord (même ordre que la réservation : pas d'interblocage)
+      await client.query('SELECT 1 FROM patients WHERE id_utilisateur = $1 FOR UPDATE', [req.user.id]);
       const { rows: [r] } = await client.query(
         `SELECT r.id_rdv, r.id_patient, r.statut, r.id_creneau, r.motif_chiffre, p.id_praticien,
                 cr.debut - now() >= make_interval(hours => $2) AS delai_ok
@@ -141,8 +147,11 @@ router.patch('/:id/report', requirePermission('RDV_PRENDRE'), validate(reportSch
       if (!nouveau) return { status: 404, body: { message: 'Créneau introuvable' } };
       if (nouveau.id_praticien !== r.id_praticien) return { status: 422, body: { message: 'Le report se fait chez le même praticien' } };
       if (nouveau.statut !== 'libre' || !nouveau.a_venir) return { status: 409, body: PRIS };
+      // le nouveau créneau ne doit chevaucher aucun autre rendez-vous du patient (l'ancien est exclu)
+      const conflit = await conflitPatient(client, { idPatient: r.id_patient, idCreneau: nouveau.id_creneau, idRdvExclu: r.id_rdv });
+      if (conflit) return conflit;
 
-      await client.query("UPDATE creneaux SET statut = 'libre' WHERE id_creneau = $1", [r.id_creneau]);
+      await libererCreneau(client, r.id_creneau);   // reste bloqué pendant une absence du praticien
       await client.query("UPDATE creneaux SET statut = 'reserve' WHERE id_creneau = $1", [nouveau.id_creneau]);
       await client.query("UPDATE rendez_vous SET statut = 'reporte' WHERE id_rdv = $1", [r.id_rdv]);
       const { rows: [n] } = await client.query(
