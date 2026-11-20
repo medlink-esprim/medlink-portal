@@ -20,6 +20,11 @@ app.get('/api/health', async (req, res) => {
   res.json({ status: 'ok', cliniques: rows[0].cliniques });
 });
 
+// US-49 : hors de la plage d'ouverture (HORAIRES_SERVICE), l'API répond 503 avec un message explicatif
+const { horsService, etatService } = require('./security/horaires');
+app.get('/api/horaires', (req, res) => res.json(etatService()));
+app.use('/api', horsService);
+
 // ===== ROUTES : chaque user story ajoute sa ligne ici =====
 // US-02 : frein contre les essais répétés (le verrouillage de compte arrive au Sprint 3, US-41)
 app.use('/api/auth', rateLimit({
