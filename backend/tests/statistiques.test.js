@@ -1,12 +1,13 @@
 // Statistiques de la Release 3 (intégration, base requise)
 //   docker compose exec api npx jest tests/statistiques.test.js
-const { db, creerPatient, creerPraticien, creerAgent, creerAdmin, connecter, creerRdv, creerCreneau, nettoyer } = require('./outils');
+const { db, creerPatient, creerPraticien, creerAgent, creerAdmin, creerDirection, connecter, creerRdv, creerCreneau, nettoyer } = require('./outils');
 
-let agent; let admin; let drSousse; let drSfax; let salma; let amine; let agentAccueil; let du; let au;
+let agent; let admin; let direction; let drSousse; let drSfax; let salma; let amine; let agentAccueil; let du; let au;
 
 beforeAll(async () => {
   agent = await creerAgent('Sousse');
   admin = await creerAdmin();
+  direction = await creerDirection();
   drSousse = await creerPraticien('Cardiologie', ['Sousse']);
   drSfax = await creerPraticien('Dermatologie', ['Sfax'], 'Leila', 'Gharbi');
   salma = await creerPatient('Salma', 'Ben Ali');
@@ -24,7 +25,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await nettoyer(agent, admin, drSousse, drSfax, salma, amine);
+  await nettoyer(agent, admin, direction, drSousse, drSfax, salma, amine);
   await db.pool.end();
 });
 
@@ -77,4 +78,50 @@ test('US-32 : export CSV agrégé et anonymisé, réservé à STATS_EXPORTER', a
   expect((await (await connecter(admin)).get(`/api/statistiques/export.csv?du=${du}&au=${au}`)).status).toBe(403);
   expect((await (await connecter(salma)).get('/api/statistiques/export.csv')).status).toBe(403);
   warn.mockRestore();
+});
+
+// ===================== US-50 / US-51 : Direction =====================
+test('US-50 : synthèse par clinique et par mois', async () => {
+  await creerRdv(salma, drSousse, { dansJours: 800, heure: '09:00', statut: 'honore' });
+  await creerRdv(amine, drSousse, { dansJours: 800, heure: '09:30', statut: 'honore' });
+  await creerRdv(amine, drSousse, { dansJours: 800, heure: '10:00', statut: 'manque', origine: 'accueil' });
+  const { rows: [d] } = await db.query(
+    "SELECT extract(year FROM j)::int AS annee, extract(month FROM j)::int AS mois FROM (SELECT (now() AT TIME ZONE 'Africa/Tunis')::date + 800 AS j) x",
+  );
+  const dir = await connecter(direction);
+  const res = await dir.get(`/api/statistiques/synthese?annee=${d.annee}`);
+  expect(res.status).toBe(200);
+  expect(res.body.cliniques).toHaveLength(3);
+  const sousse = res.body.cliniques.find((k) => k.clinique === 'Sousse');
+  expect(sousse.mois).toHaveLength(12);
+  expect(sousse.mois[d.mois - 1]).toMatchObject({ rendez_vous: 3, honores: 2, manques: 1, en_ligne: 2, taux_en_ligne: 66.7 });
+  expect(sousse.total).toMatchObject({ rendez_vous: 3, taux_honores: 66.7 });
+  expect(JSON.stringify(res.body)).not.toMatch(/Ben Ali|Jaziri/);
+  expect((await dir.get('/api/statistiques/synthese?annee=deux-mille')).status).toBe(400);
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  expect((await agentAccueil.get('/api/statistiques/synthese')).status).toBe(403);   // réservé à la Direction (et à l'admin)
+  warn.mockRestore();
+});
+
+test('US-51 : part des rendez-vous pris en ligne et objectif de 40 %', async () => {
+  const dir = await connecter(direction);
+  const { rows: [d] } = await db.query("SELECT to_char((now() AT TIME ZONE 'Africa/Tunis')::date, 'YYYY-MM-DD') AS j");
+  const avant = (await dir.get(`/api/statistiques/appels?du=${d.j}&au=${d.j}`)).body.total;
+  await creerRdv(salma, drSfax, { ville: 'Sfax', dansJours: 401, heure: '08:00' });
+  await creerRdv(amine, drSfax, { ville: 'Sfax', dansJours: 401, heure: '08:30', origine: 'accueil' });
+  await creerRdv(amine, drSfax, { ville: 'Sfax', dansJours: 401, heure: '09:00', origine: 'accueil' });
+  const res = await dir.get(`/api/statistiques/appels?du=${d.j}&au=${d.j}`);
+  expect(res.status).toBe(200);
+  expect(res.body.objectif).toBe(40);
+  const t = res.body.total;
+  expect(t.rendez_vous - avant.rendez_vous).toBe(3);
+  expect(t.en_ligne - avant.en_ligne).toBe(1);
+  expect(t.accueil - avant.accueil).toBe(2);
+  expect(t.part_en_ligne).toBe(Math.round((1000 * t.en_ligne) / t.rendez_vous) / 10);
+  expect(t.objectif_atteint).toBe(t.part_en_ligne >= 40);
+  expect(res.body.mois).toHaveLength(1);
+  expect(res.body.mois[0]).toMatchObject({ mois: d.j.slice(0, 7), evolution: null });
+  const parDefaut = await dir.get('/api/statistiques/appels');                      // 12 derniers mois
+  expect(parDefaut.status).toBe(200);
+  expect(parDefaut.body.au).toBe(d.j);
 });
