@@ -11,7 +11,7 @@ Product Owner : M. Mounir Abida.
 | `frontend/` | Application React (Vite) |
 | `backend/` | API Node.js / Express |
 | `db/migrations/` | Scripts SQL numérotés |
-| `docs/` | SRS et diagrammes UML |
+| `docs/` | SRS, architecture, sécurité, tests (voir ci-dessous) |
 | `deploy/` | Configuration serveur et procédure de déploiement |
 
 ## Règles de travail
@@ -33,3 +33,15 @@ Product Owner : M. Mounir Abida.
 
 - Aucun secret dans le dépôt : `.env` est ignoré, seul `.env.example` est versionné.
 - Ne jamais journaliser un mot de passe ou un jeton.
+
+## Documentation (US-65)
+
+| Document | Contenu |
+|---|---|
+| `docs/srs/SRS_MedLink.pdf`, `docs/srs/ECARTS_SRS.md` | besoins et écarts avec le portail livré |
+| `docs/architecture/ARCHITECTURE.md`, `docs/uml/` | déploiement, composants, modèle de données, flux de sécurité |
+| `docs/JOURNAL_AUDIT.md` | journal des accès aux dossiers et événements de sécurité |
+| `docs/securite/CHECKLIST_OWASP.md` | exigences ↔ OWASP Top 10 ↔ preuves |
+| `docs/securite/MATRICE_RBAC.md`, `docs/securite/ZAP.md` | accès par rôle ; scan ZAP et corrections |
+| `docs/tests/PLAN_DE_TESTS.md`, `docs/tests/PERFORMANCES.md` | traçabilité des 66 user stories, recette, performances |
+| `deploy/DEPLOY.md`, `deploy/VAULT.md`, `deploy/SAUVEGARDES.md`, `deploy/ROTATION_CLES.md` | exploitation |
