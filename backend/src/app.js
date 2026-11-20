@@ -46,6 +46,7 @@ app.use('/api/patients', require('./routes/patients'));             // US-11, US
 app.use('/api/documents', require('./routes/documents'));           // US-14 Iheb
 app.use('/api/praticien', require('./routes/praticien'));          // US-19 à US-25 (Sprint 4)
 app.use('/api/accueil', require('./routes/accueil'));              // US-30 Akram
+app.use('/api/admin/audit', require('./routes/audit'));            // US-35 Jasser
 // ===== FIN DES ROUTES =====
 
 // 404 pour toute route /api inconnue
