@@ -24,10 +24,14 @@ import Agenda from './pages/Agenda.jsx'
 import Comptes from './pages/Comptes.jsx'
 import RdvAccueil from './pages/RdvAccueil.jsx'
 import JournalAudit from './pages/JournalAudit.jsx'
+import Maintenance from './pages/Maintenance.jsx'
+import BandeauMaintenance from './components/BandeauMaintenance.jsx'
 // ===== IMPORTS DES PAGES =====
 
 export default function App() {
   return (
+    <>
+    <BandeauMaintenance />
     <Routes>
       <Route path="/" element={<Navigate to="/connexion" replace />} />
       <Route path="/health" element={<Health />} />                               {/* US-56 */}
@@ -55,8 +59,10 @@ export default function App() {
       <Route path="/back-office/comptes" element={<Comptes />} />               {/* US-28, US-29 */}
       <Route path="/back-office/rendez-vous" element={<RdvAccueil />} />        {/* US-30 */}
       <Route path="/admin/audit" element={<JournalAudit />} />                 {/* US-35, US-36 */}
+      <Route path="/admin/maintenance" element={<Maintenance />} />           {/* US-38 */}
       {/* ===== ROUTES DES PAGES ===== */}
       <Route path="*" element={<Navigate to="/connexion" replace />} />
     </Routes>
+    </>
   )
 }
