@@ -1,0 +1,63 @@
+# US-60 : scan de vulnérabilités OWASP ZAP du portail déployé (recette Azure), lancé à la main :
+#   GitHub > Actions > « Scan OWASP ZAP » > Run workflow (la VM doit être démarrée).
+# Rapport HTML/JSON/Markdown en artefact. US-61 : le job échoue s'il reste une alerte de risque élevé (High).
+name: Scan OWASP ZAP
+
+on:
+  workflow_dispatch:
+    inputs:
+      cible:
+        description: URL du portail à scanner
+        default: https://medlink-esprit.francecentral.cloudapp.azure.com
+        required: true
+      complet:
+        description: Scan complet (actif, ~20 min) en plus du scan passif
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  zap:
+    name: ZAP (${{ inputs.complet && 'complet' || 'passif' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan passif (baseline)
+        if: ${{ !inputs.complet }}
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: ${{ inputs.cible }}
+          rules_file_name: .zap/rules.tsv
+          cmd_options: '-a -j'
+          allow_issue_writing: false
+          fail_action: false
+          artifact_name: zap-rapport-passif
+
+      - name: Scan complet (actif)
+        if: ${{ inputs.complet }}
+        uses: zaproxy/action-full-scan@v0.12.0
+        with:
+          target: ${{ inputs.cible }}
+          rules_file_name: .zap/rules.tsv
+          cmd_options: '-a -j'
+          allow_issue_writing: false
+          fail_action: false
+          artifact_name: zap-rapport-complet
+
+      - name: Synthèse par niveau de risque (échec si High)
+        run: |
+          test -f report_json.json || { echo "Rapport JSON absent"; exit 1; }
+          echo "## Résultat ZAP — ${{ inputs.cible }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Risque | Alertes |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          for r in 3:High 2:Medium 1:Low 0:Informational; do
+            n=$(jq "[.site[].alerts[] | select(.riskcode == \"${r%%:*}\")] | length" report_json.json)
+            echo "| ${r#*:} | $n |" >> "$GITHUB_STEP_SUMMARY"
+          done
+          jq -r '.site[].alerts[] | "- [\(.riskdesc)] \(.alert) (\(.pluginid)) : \(.count) URL"' report_json.json >> "$GITHUB_STEP_SUMMARY"
+          high=$(jq '[.site[].alerts[] | select(.riskcode == "3")] | length' report_json.json)
+          [ "$high" -eq 0 ] || { echo "::error::$high alerte(s) de risque élevé"; exit 1; }

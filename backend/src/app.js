@@ -13,6 +13,8 @@ app.disable('x-powered-by');
 app.use(helmet());
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
+// US-61 (scan ZAP) : réponses de l'API jamais mises en cache (données médicales)
+app.use('/api', (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 
 // Page de test (US-56) : lit une donnée en base via l'API
 app.get('/api/health', async (req, res) => {
@@ -24,6 +26,15 @@ app.get('/api/health', async (req, res) => {
 const { horsService, etatService } = require('./security/horaires');
 app.get('/api/horaires', (req, res) => res.json(etatService()));
 app.use('/api', horsService);
+
+// US-61 (scan ZAP) : frein global contre l'abus en production (600 requêtes / 5 min / adresse IP)
+app.use('/api', rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: config.isProd ? 600 : 100000,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { message: 'Trop de requêtes, réessayez dans quelques minutes.' },
+}));
 
 // ===== ROUTES : chaque user story ajoute sa ligne ici =====
 // US-02 : frein contre les essais répétés (le verrouillage de compte arrive au Sprint 3, US-41)
