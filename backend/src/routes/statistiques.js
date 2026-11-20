@@ -1,6 +1,8 @@
 // Statistiques d'activité (Release 3). Montée sur /api/statistiques :
 //   GET /supervision?du=&au=   (US-31, SUPERVISION_CONSULTER) occupation et rendez-vous par clinique
 //   GET /export.csv?du=&au=    (US-32, STATS_EXPORTER) export anonymisé (US-46) semaine × clinique × spécialité
+//   GET /synthese?annee=       (US-50, SYNTHESE_CONSULTER) chiffres clés par clinique et par mois
+//   GET /appels?du=&au=        (US-51, SYNTHESE_CONSULTER) part des rendez-vous pris en ligne, mois par mois
 // Aucune donnée nominative : uniquement des comptages par clinique.
 const express = require('express');
 const Joi = require('joi');
@@ -17,8 +19,8 @@ const dateIso = Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).custom((v, helpers) 
 const periodeSchema = Joi.object({ du: dateIso, au: dateIso });
 
 // période par défaut : le mois en cours (heure de Tunis) ; 366 jours au plus
-async function lirePeriode(req, res) {
-  const { error, value } = periodeSchema.validate(req.query, { stripUnknown: true });
+async function lirePeriode(req, res, parDefaut = {}) {
+  const { error, value } = periodeSchema.validate({ ...parDefaut, ...req.query }, { stripUnknown: true });
   if (error) { res.status(400).json({ message: 'Période invalide' }); return null; }
   const { rows: [p] } = await db.query(
     `WITH a AS (SELECT (now() AT TIME ZONE 'Africa/Tunis')::date AS j)
@@ -101,6 +103,86 @@ router.get('/export.csv', requirePermission('STATS_EXPORTER'), async (req, res) 
   res.set('Content-Disposition', `attachment; filename="statistiques-medlink-${p.du}-${p.au}.csv"`);
   res.set('Cache-Control', 'no-store');
   return res.send(versCsv(COLONNES_EXPORT, lignes));
+});
+
+// ===================== US-50 : synthèse de la Direction =====================
+// Chiffres clés par clinique et par mois (mois du rendez-vous, heure de Tunis), pour une année.
+const SQL_SYNTHESE = `
+  SELECT k.ville AS clinique, extract(month FROM c.debut AT TIME ZONE 'Africa/Tunis')::int AS mois,
+         count(*)::int AS rendez_vous,
+         count(*) FILTER (WHERE r.statut = 'honore')::int AS honores,
+         count(*) FILTER (WHERE r.statut = 'manque')::int AS manques,
+         count(*) FILTER (WHERE r.statut = 'annule')::int AS annules,
+         count(*) FILTER (WHERE r.origine = 'en_ligne')::int AS en_ligne,
+         count(DISTINCT r.id_patient)::int AS patients
+    FROM rendez_vous r
+    JOIN creneaux c USING (id_creneau)
+    JOIN plages_disponibilite p USING (id_plage)
+    JOIN cliniques k ON k.id_clinique = p.id_clinique
+   WHERE extract(year FROM c.debut AT TIME ZONE 'Africa/Tunis') = $1 AND r.statut <> 'reporte'
+   GROUP BY 1, 2`;
+const CHIFFRES = ['rendez_vous', 'honores', 'manques', 'annules', 'en_ligne'];
+
+router.get('/synthese', requirePermission('SYNTHESE_CONSULTER'), async (req, res) => {
+  const { error, value } = Joi.object({ annee: Joi.number().integer().min(2020).max(2100) }).validate(req.query, { stripUnknown: true });
+  if (error) return res.status(400).json({ message: 'Année invalide' });
+  const annee = value.annee || Number(new Intl.DateTimeFormat('en', { timeZone: 'Africa/Tunis', year: 'numeric' }).format(new Date()));
+  const [{ rows }, { rows: cliniques }] = await Promise.all([
+    db.query(SQL_SYNTHESE, [annee]),
+    db.query('SELECT ville, nom FROM cliniques ORDER BY ville'),
+  ]);
+  const vide = () => Object.fromEntries(CHIFFRES.map((k) => [k, 0]));
+  const parClinique = cliniques.map((k) => {
+    const mois = Array.from({ length: 12 }, (_, i) => ({ mois: i + 1, ...vide(), ...(rows.find((r) => r.clinique === k.ville && r.mois === i + 1) || {}) }))
+      .map(({ clinique, patients, ...m }) => ({ ...m, taux_en_ligne: taux(m.en_ligne, m.rendez_vous) }));
+    const total = Object.fromEntries(CHIFFRES.map((c) => [c, mois.reduce((s, m) => s + m[c], 0)]));
+    return { clinique: k.ville, nom: k.nom, mois, total: { ...total, taux_honores: taux(total.honores, total.rendez_vous - total.annules), taux_en_ligne: taux(total.en_ligne, total.rendez_vous) } };
+  });
+  const total = Object.fromEntries(CHIFFRES.map((c) => [c, parClinique.reduce((s, k) => s + k.total[c], 0)]));
+  return res.json({ annee, cliniques: parClinique, total: { ...total, taux_en_ligne: taux(total.en_ligne, total.rendez_vous) } });
+});
+
+// ===================== US-51 : suivi de la baisse des appels =====================
+// Part des rendez-vous pris en ligne (date de prise du rendez-vous), mois par mois.
+// Hypothèse du cahier des charges : avant le portail, tous les rendez-vous passaient par le standard ;
+// une part en ligne de 40 % correspond donc à la baisse de 40 % des appels visée.
+const OBJECTIF_EN_LIGNE = 40;
+const SQL_APPELS = `
+  SELECT to_char(r.date_creation AT TIME ZONE 'Africa/Tunis', 'YYYY-MM') AS mois,
+         count(*)::int AS rendez_vous,
+         count(*) FILTER (WHERE r.origine = 'en_ligne')::int AS en_ligne,
+         count(*) FILTER (WHERE r.origine = 'accueil')::int AS accueil
+    FROM rendez_vous r
+   WHERE r.date_creation >= $1::date::timestamp AT TIME ZONE 'Africa/Tunis'
+     AND r.date_creation < ($2::date + 1)::timestamp AT TIME ZONE 'Africa/Tunis'
+     AND r.statut <> 'reporte'
+   GROUP BY 1 ORDER BY 1`;
+
+router.get('/appels', requirePermission('SYNTHESE_CONSULTER'), async (req, res) => {
+  let parDefaut = {};
+  if (!req.query.du && !req.query.au) {     // par défaut : les 12 derniers mois
+    const { rows: [d] } = await db.query(
+      `SELECT to_char(date_trunc('month', (now() AT TIME ZONE 'Africa/Tunis')::date) - interval '11 months', 'YYYY-MM-DD') AS du,
+              to_char((now() AT TIME ZONE 'Africa/Tunis')::date, 'YYYY-MM-DD') AS au`,
+    );
+    parDefaut = d;
+  }
+  const p = await lirePeriode(req, res, parDefaut);
+  if (!p) return undefined;
+  const { rows } = await db.query(SQL_APPELS, [p.du, p.au]);
+  let precedent = null;
+  const mois = rows.map((m) => {
+    const part = taux(m.en_ligne, m.rendez_vous);
+    const evolution = precedent === null || part === null ? null : Math.round((part - precedent) * 10) / 10;
+    precedent = part;
+    return { ...m, part_en_ligne: part, evolution };
+  });
+  const somme = (k) => rows.reduce((s, m) => s + m[k], 0);
+  const part = taux(somme('en_ligne'), somme('rendez_vous'));
+  return res.json({
+    du: p.du, au: p.au, objectif: OBJECTIF_EN_LIGNE, mois,
+    total: { rendez_vous: somme('rendez_vous'), en_ligne: somme('en_ligne'), accueil: somme('accueil'), part_en_ligne: part, objectif_atteint: part !== null && part >= OBJECTIF_EN_LIGNE },
+  });
 });
 
 module.exports = router;
