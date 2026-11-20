@@ -159,17 +159,24 @@ async function notifierDocument(idPatient, idPraticien) {
   }
 }
 
-// US-36 : alerte de sécurité envoyée par e-mail à tous les administrateurs actifs
-async function notifierAdmins({ sujet, texte }) {
+// US-36 / US-16 : message envoyé par e-mail à tous les administrateurs actifs
+async function notifierAdmins({ sujet, texte, type = 'securite' }) {
   const { rows } = await db.query(
     `SELECT u.id_utilisateur, u.email FROM utilisateurs u JOIN roles r USING (id_role)
       WHERE r.code = 'ADMIN' AND u.statut = 'actif'`,
   );
   let n = 0;
   for (const a of rows) {
-    if (await envoyer({ idDestinataire: a.id_utilisateur, idRdv: null, type: 'securite', canal: 'email', destination: a.email, sujet, texte })) n += 1;
+    if (await envoyer({ idDestinataire: a.id_utilisateur, idRdv: null, type, canal: 'email', destination: a.email, sujet, texte })) n += 1;
   }
   return n;
 }
 
-module.exports = { notifierPatient, notifierPraticien, notifierDocument, notifierAdmins, detailsRdv };
+// US-16 : e-mail au patient sur l'avancement de sa demande (aucune donnée personnelle dans le message)
+async function notifierDemande(idPatient, { sujet, texte }) {
+  const { rows: [u] } = await db.query('SELECT email FROM utilisateurs WHERE id_utilisateur = $1', [idPatient]);
+  if (!u) return false;
+  return envoyer({ idDestinataire: idPatient, idRdv: null, type: 'demande', canal: 'email', destination: u.email, sujet, texte });
+}
+
+module.exports = { notifierPatient, notifierPraticien, notifierDocument, notifierAdmins, notifierDemande, detailsRdv };
