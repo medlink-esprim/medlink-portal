@@ -1,0 +1,4 @@
+10096	IGNORE	(Timestamp Disclosure - Unix) faux positif : nombres du bundle JavaScript minifié
+10027	IGNORE	(Information Disclosure - Suspicious Comments) commentaires des bibliothèques dans le bundle minifié
+10109	IGNORE	(Modern Web Application) information : application React
+10049	IGNORE	(Storable and Cacheable Content) information : fichiers statiques versionnés, API en no-store
