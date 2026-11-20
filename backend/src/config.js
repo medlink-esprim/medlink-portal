@@ -40,6 +40,8 @@ if (!cles.has(active)) {
 module.exports = {
   chiffrement: { cles, active },
   rappelsActifs: process.env.RAPPELS_ACTIFS !== 'false',   // US-48
+  // US-49 : plage d'ouverture du portail, heure de Tunis (ex. 06:00-22:00) ; vide = toujours ouvert (dev, CI)
+  horairesService: process.env.HORAIRES_SERVICE || '',
   seuilAccesSuspects: Number(process.env.SEUIL_ACCES_SUSPECTS || 20),   // US-36 : dossiers distincts par heure
   // US-13 : fichiers des documents médicaux, chiffrés, hors de la racine web (volume Docker « documents »)
   documentsDir: process.env.DOCUMENTS_DIR || require('path').join(__dirname, '..', 'stockage'),
