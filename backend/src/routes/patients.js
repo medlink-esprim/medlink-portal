@@ -7,6 +7,7 @@
 //   POST /moi/consentement        (US-04) nouveau consentement à la politique en vigueur
 //   GET /moi/documents            (US-13) résultats et documents du dossier du patient
 //   GET /moi/acces                (US-47) qui a consulté mon dossier, et quand
+//   GET/POST /moi/demandes, GET /moi/demandes/:id/export (US-16) export ou suppression de mes données (INPDP)
 const express = require('express');
 const Joi = require('joi');
 const argon2 = require('argon2');
@@ -16,6 +17,9 @@ const { requirePermission, requireRole } = require('../middleware/auth');
 const { issueToken } = require('../security/tokens');
 const mailer = require('../services/mailer');
 const { POLITIQUE_VERSION } = require('../politique');
+const { journaliser } = require('../security/journal');
+const { dechiffrer } = require('../security/chiffrement');
+const { notifierAdmins } = require('../services/notifications');
 
 const router = express.Router();
 
@@ -172,6 +176,57 @@ router.get('/moi/acces', requirePermission('DOSSIER_PROPRE'), async (req, res) =
     [req.user.id],
   );
   res.json(rows);
+});
+
+// ===================== US-16 : droits INPDP (export, suppression) =====================
+router.get('/moi/demandes', requirePermission('DOSSIER_PROPRE'), async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT id_demande, type, statut, message, reponse, date_demande, date_traitement,
+            (export_chiffre IS NOT NULL) AS export_disponible
+       FROM demandes_donnees WHERE id_patient = $1 ORDER BY date_demande DESC`,
+    [req.user.id],
+  );
+  res.json(rows);
+});
+
+const demandeSchema = Joi.object({
+  type: Joi.string().valid('export', 'suppression').required(),
+  message: Joi.string().trim().max(500).allow(''),
+});
+
+router.post('/moi/demandes', requirePermission('DOSSIER_PROPRE'), validate(demandeSchema), async (req, res) => {
+  let id;
+  try {
+    const { rows: [d] } = await db.query(
+      'INSERT INTO demandes_donnees (id_patient, type, message) VALUES ($1, $2, $3) RETURNING id_demande',
+      [req.user.id, req.body.type, req.body.message || null],
+    );
+    id = d.id_demande;
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ message: 'Une demande de ce type est déjà en cours de traitement' });
+    throw err;
+  }
+  journaliser('DEMANDE_DONNEES', req, { demande: id, type: req.body.type });
+  await notifierAdmins({
+    type: 'demande',
+    sujet: `MedLink — nouvelle demande ${req.body.type === 'export' ? "d'export" : 'de suppression'} de données`,
+    texte: `Bonjour,\n\nUn patient a déposé une demande ${req.body.type === 'export' ? "d'export" : 'de suppression'} de ses données personnelles (loi INPDP).\nÀ traiter dans « Demandes INPDP » : ${require('../config').appUrl}/admin/demandes`,
+  });
+  return res.status(201).json({ idDemande: id, message: "Demande transmise à l'administration. Vous serez informé de son traitement." });
+});
+
+router.get('/moi/demandes/:id/export', requirePermission('DOSSIER_PROPRE'), async (req, res) => {
+  if (Joi.string().guid().validate(req.params.id).error) return res.status(404).json({ message: 'Export introuvable' });
+  const { rows: [d] } = await db.query(
+    "SELECT id_demande, export_chiffre FROM demandes_donnees WHERE id_demande = $1 AND id_patient = $2 AND type = 'export' AND statut = 'traitee'",
+    [req.params.id, req.user.id],
+  );
+  if (!d || !d.export_chiffre) return res.status(404).json({ message: 'Export introuvable' });
+  journaliser('EXPORT_TELECHARGE', req, { demande: d.id_demande });
+  res.set('Content-Type', 'application/json; charset=utf-8');
+  res.set('Content-Disposition', 'attachment; filename="mes-donnees-medlink.json"');
+  res.set('Cache-Control', 'no-store');
+  return res.send(dechiffrer(d.export_chiffre, d.id_demande));
 });
 
 module.exports = router;
