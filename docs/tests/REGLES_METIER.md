@@ -53,3 +53,17 @@ Avant correction, 11 scénarios échouaient : ils sont marqués **corrigé**.
 - `backend/src/routes/disponibilites.js` : une seule clinique par jour, période contenant le jour choisi,
   chevauchement calculé sur les dates réellement communes.
 - `backend/src/routes/comptes.js` : la réactivation ne rouvre pas les créneaux d'une absence.
+
+## D. Présence aux rendez-vous (`backend/tests/presences.test.js`)
+
+Avant : un rendez-vous passé sans compte-rendu restait « planifié » pour toujours et faussait la supervision.
+
+| # | Scénario | Résultat attendu |
+|---|---|---|
+| D1 | Le praticien marque le patient absent, puis corrige en présent | « manqué » puis « honoré », événement `PRESENCE_MARQUEE` |
+| D2 | Présence sur un rendez-vous à venir, annulé, d'un autre praticien, ou de plus de 30 jours | refusée |
+| D3 | « Absent » alors qu'un compte-rendu existe | refusé ; rédiger un compte-rendu rend « honoré » un rendez-vous « manqué » |
+| D4 | Rendez-vous resté « planifié » 48 h après sa fin | passe seul à « manqué » (tâche à 03:00 et au démarrage, événement `ABSENCES_MARQUEES`) |
+| D5 | Dossier du patient | boutons « Présent / Absent » sur les rendez-vous passés de moins de 30 jours |
+
+Implémentation : `PATCH /api/praticien/rendez-vous/:id/presence` `{ present }`, `backend/src/services/presences.js`, `backend/src/server.js`.

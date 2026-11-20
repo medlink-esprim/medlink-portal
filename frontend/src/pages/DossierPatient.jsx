@@ -37,6 +37,14 @@ function Contenu() {
   }, [id])
   useEffect(() => { charger() }, [charger])
 
+  // présence : le patient est-il venu ? (sinon le rendez-vous passe seul à « Manqué » 48 h après)
+  async function presence(r, present) {
+    setMessage(null)
+    const res = await api(`/praticien/rendez-vous/${r.id_rdv}/presence`, { method: 'PATCH', body: { present } })
+    setMessage({ type: res.ok ? 'ok' : 'error', text: res.data?.message || 'Modification impossible' })
+    if (res.ok) charger()
+  }
+
   function rediger(r) {
     setLecture(null); setRedaction(r); setTexte(''); setVisible(true); setMessage(null)
   }
@@ -84,7 +92,13 @@ function Contenu() {
                       <td>{r.ville}</td>
                       <td>{r.motif || <span className="muted">—</span>}</td>
                       <td><span className={`pill ${classe}`}>{libelle}</span>
-                        {r.origine === 'accueil' && <span className="pill pill-new">Pris par l'accueil</span>}</td>
+                        {r.origine === 'accueil' && <span className="pill pill-new">Pris par l'accueil</span>}
+                        {r.presence_modifiable && (
+                          <div style={{ display: 'flex', gap: '.4rem', marginTop: '.35rem' }}>
+                            {r.statut !== 'honore' && <button className="btn-secondary btn-mini" onClick={() => presence(r, true)}>Présent</button>}
+                            {r.statut !== 'manque' && !r.compteRendu && <button className="btn-secondary btn-mini" onClick={() => presence(r, false)}>Absent</button>}
+                          </div>
+                        )}</td>
                       <td>
                         {r.compteRendu && <button className="btn-secondary btn-mini" onClick={() => { setRedaction(null); setLecture(lecture?.id_rdv === r.id_rdv ? null : r) }}>Lire</button>}
                         {r.redigeable && <button className="btn-primary btn-mini" onClick={() => rediger(r)}>Rédiger</button>}
