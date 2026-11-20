@@ -26,6 +26,7 @@ import RdvAccueil from './pages/RdvAccueil.jsx'
 import JournalAudit from './pages/JournalAudit.jsx'
 import Maintenance from './pages/Maintenance.jsx'
 import BandeauMaintenance from './components/BandeauMaintenance.jsx'
+import HorsService from './components/HorsService.jsx'
 import DemandesDonnees from './pages/DemandesDonnees.jsx'
 import Supervision from './pages/Supervision.jsx'
 import Synthese from './pages/Synthese.jsx'
@@ -33,7 +34,7 @@ import Synthese from './pages/Synthese.jsx'
 
 export default function App() {
   return (
-    <>
+    <HorsService>                                                               {/* US-49 */}
     <BandeauMaintenance />
     <Routes>
       <Route path="/" element={<Navigate to="/connexion" replace />} />
@@ -69,6 +70,6 @@ export default function App() {
       {/* ===== ROUTES DES PAGES ===== */}
       <Route path="*" element={<Navigate to="/connexion" replace />} />
     </Routes>
-    </>
+    </HorsService>
   )
 }
