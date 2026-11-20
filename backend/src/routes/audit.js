@@ -2,6 +2,7 @@
 // Montée sur /api/admin/audit (permission AUDIT_CONSULTER) :
 //   GET /            liste filtrée et paginée (utilisateur, dossier, action, date et heure)
 //   GET /export.csv  même filtre, fichier CSV (5 000 lignes au plus)
+//   GET /alertes, PATCH /alertes/:id  (US-36) alertes d'accès suspect, à marquer comme traitées
 // Toute consultation du journal est elle-même journalisée (AUDIT_CONSULTE).
 const express = require('express');
 const Joi = require('joi');
@@ -81,6 +82,33 @@ router.get('/export.csv', async (req, res) => {
   res.set('Content-Disposition', 'attachment; filename="journal-audit-medlink.csv"');
   res.set('Cache-Control', 'no-store');
   return res.send(`\uFEFF${entete.join(';')}\r\n${lignes.join('\r\n')}\r\n`);
+});
+
+// ===================== US-36 : alertes d'accès suspect =====================
+router.get('/alertes', async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT a.id_alerte, a.date_alerte, a.regle, a.nb_dossiers, a.details, a.statut, a.date_traitement,
+            u.prenom, u.nom, u.email, r.code AS role
+       FROM alertes_securite a
+       LEFT JOIN utilisateurs u ON u.id_utilisateur = a.id_utilisateur
+       LEFT JOIN roles r ON r.id_role = u.id_role
+      ORDER BY (a.statut = 'nouvelle') DESC, a.date_alerte DESC
+      LIMIT 50`,
+  );
+  res.json({ nouvelles: rows.filter((a) => a.statut === 'nouvelle').length, alertes: rows });
+});
+
+router.patch('/alertes/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) return res.status(404).json({ message: 'Alerte introuvable' });
+  const { rowCount } = await db.query(
+    `UPDATE alertes_securite SET statut = 'traitee', id_traitant = $2, date_traitement = now()
+      WHERE id_alerte = $1 AND statut = 'nouvelle'`,
+    [id, req.user.id],
+  );
+  if (!rowCount) return res.status(404).json({ message: 'Alerte introuvable ou déjà traitée' });
+  journaliser('ALERTE_TRAITEE', req, { alerte: id });
+  return res.json({ message: 'Alerte marquée comme traitée' });
 });
 
 module.exports = router;
