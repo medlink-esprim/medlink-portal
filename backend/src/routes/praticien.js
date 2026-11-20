@@ -19,6 +19,8 @@ const { publierDocument, pdfTexte } = require('../services/stockage');
 const { detailsRdv, notifierDocument } = require('../services/notifications');
 const { aRelationDeSoins } = require('../security/soins');
 const { journaliserAcces } = require('../security/acces');
+const { journaliser } = require('../security/journal');
+const { CORRECTION_JOURS } = require('../services/presences');
 
 const router = express.Router();
 const estUuid = (v) => !Joi.string().guid().validate(v).error;
@@ -81,7 +83,8 @@ router.get('/patients/:id/dossier', requirePermission('DOSSIER_PATIENTS'), async
     db.query(
       `SELECT r.id_rdv, r.statut, r.origine, r.motif_chiffre, cr.debut, cr.fin, c.nom AS clinique, c.ville,
               crd.id_compte_rendu, crd.contenu_chiffre, crd.visible_patient, crd.date_redaction,
-              (r.statut IN ('planifie', 'honore') AND cr.debut <= now() AND crd.id_compte_rendu IS NULL) AS redigeable
+              (r.statut IN ('planifie', 'honore', 'manque') AND cr.debut <= now() AND crd.id_compte_rendu IS NULL) AS redigeable,
+              (r.statut IN ('planifie', 'honore', 'manque') AND cr.debut <= now() AND cr.debut > now() - interval '30 days') AS presence_modifiable
          FROM rendez_vous r
          JOIN creneaux cr USING (id_creneau)
          JOIN plages_disponibilite p USING (id_plage)
@@ -143,7 +146,7 @@ router.post('/rendez-vous/:id/compte-rendu', requirePermission('COMPTE_RENDU_RED
       );
       if (!r) return { status: 404, body: { message: 'Rendez-vous introuvable' } };
       if (r.id_praticien !== req.user.id) return { refus: true };   // US-39 : contrôle de propriété
-      if (!['planifie', 'honore'].includes(r.statut)) return { status: 409, body: { message: 'Ce rendez-vous a été annulé, reporté ou manqué : pas de compte-rendu.' } };
+      if (!['planifie', 'honore', 'manque'].includes(r.statut)) return { status: 409, body: { message: 'Ce rendez-vous a été annulé ou reporté : pas de compte-rendu.' } };
       if (!r.commence) return { status: 422, body: { message: 'Le compte-rendu se rédige une fois la consultation commencée.' } };
       if (r.existe) return { status: 409, body: { message: 'Un compte-rendu existe déjà pour cette consultation.' } };
 
@@ -153,7 +156,8 @@ router.post('/rendez-vous/:id/compte-rendu', requirePermission('COMPTE_RENDU_RED
          VALUES ($1, $2, $3, $4, $5)`,
         [id, r.id_rdv, req.user.id, chiffrer(contenu, id), visiblePatient],
       );
-      await client.query("UPDATE rendez_vous SET statut = 'honore' WHERE id_rdv = $1 AND statut = 'planifie'", [r.id_rdv]);
+      // un compte-rendu prouve la consultation : « manqué » (marqué par erreur ou automatiquement) devient « honoré »
+      await client.query("UPDATE rendez_vous SET statut = 'honore' WHERE id_rdv = $1 AND statut IN ('planifie', 'manque')", [r.id_rdv]);
       await journaliserAcces(req, { idPatient: r.id_patient, action: 'redaction_compte_rendu' }, client);
       return { status: 201, id, idPatient: r.id_patient, idRdv: r.id_rdv };
     });
@@ -184,6 +188,37 @@ router.post('/rendez-vous/:id/compte-rendu', requirePermission('COMPTE_RENDU_RED
     }
   }
   return res.status(201).json({ id: outcome.id, idDocument, message: visiblePatient ? 'Compte-rendu enregistré et publié dans le dossier du patient' : 'Compte-rendu enregistré (non visible du patient)' });
+});
+
+// Présence au rendez-vous : le praticien marque le patient présent (honoré) ou absent (manqué),
+// une fois la consultation commencée et pendant 30 jours ; « absent » est refusé s'il existe un compte-rendu.
+const presenceSchema = Joi.object({ present: Joi.boolean().required() });
+
+router.patch('/rendez-vous/:id/presence', requirePermission('DISPONIBILITES_GERER'), validate(presenceSchema), async (req, res) => {
+  if (!estUuid(req.params.id)) return res.status(404).json({ message: 'Rendez-vous introuvable' });
+  const outcome = await db.withTransaction(async (client) => {
+    const { rows: [r] } = await client.query(
+      `SELECT r.id_rdv, r.statut, p.id_praticien, cr.debut <= now() AS commence,
+              cr.debut > now() - make_interval(days => $2) AS corrigeable,
+              EXISTS (SELECT 1 FROM comptes_rendus x WHERE x.id_rdv = r.id_rdv) AS compte_rendu
+         FROM rendez_vous r JOIN creneaux cr USING (id_creneau) JOIN plages_disponibilite p USING (id_plage)
+        WHERE r.id_rdv = $1
+          FOR UPDATE OF r`,
+      [req.params.id, CORRECTION_JOURS],
+    );
+    if (!r) return { status: 404, body: { message: 'Rendez-vous introuvable' } };
+    if (r.id_praticien !== req.user.id) return { refus: true };
+    if (!['planifie', 'honore', 'manque'].includes(r.statut)) return { status: 409, body: { message: 'Ce rendez-vous a été annulé ou reporté.' } };
+    if (!r.commence) return { status: 422, body: { message: 'La présence se note une fois le rendez-vous commencé.' } };
+    if (!r.corrigeable) return { status: 422, body: { message: `La présence ne se modifie plus après ${CORRECTION_JOURS} jours.` } };
+    if (!req.body.present && r.compte_rendu) return { status: 409, body: { message: 'Un compte-rendu existe pour ce rendez-vous : le patient était présent.' } };
+    const statut = req.body.present ? 'honore' : 'manque';
+    await client.query('UPDATE rendez_vous SET statut = $2::statut_rdv WHERE id_rdv = $1', [r.id_rdv, statut]);
+    return { status: 200, ancien: r.statut, body: { statut, message: req.body.present ? 'Patient marqué présent' : 'Patient marqué absent' } };
+  });
+  if (outcome.refus) return refuser(req, res, `présence du rendez-vous ${req.params.id} d'un autre praticien`);
+  if (outcome.status === 200) journaliser('PRESENCE_MARQUEE', req, { rdv: req.params.id, avant: outcome.ancien, apres: outcome.body.statut });
+  return res.status(outcome.status).json(outcome.body);
 });
 
 // US-25 : publication d'un résultat ou d'un document dans le dossier d'un patient suivi.
