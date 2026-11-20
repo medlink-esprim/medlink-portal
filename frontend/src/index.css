@@ -231,3 +231,5 @@ textarea { width: 100%; padding: .6rem .7rem; border: 1px solid var(--line); bor
 .hors-service { min-height: 100vh; display: grid; place-items: center; padding: 1rem; background: var(--bg); }
 .hors-service .card { max-width: 32rem; text-align: center; }
 .hors-service h1 { color: var(--navy); font-size: 1.4rem; }
+/* US-63 : pendant le chargement d'une page */
+.chargement { padding: 2rem; text-align: center; color: var(--muted); }

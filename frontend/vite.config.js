@@ -5,6 +5,12 @@ import react from '@vitejs/plugin-react'
 // Une seule origine => cookies SameSite=Strict et aucune configuration CORS.
 export default defineConfig({
   plugins: [react()],
+  // US-63 : React et le routeur dans un fichier à part, gardé en cache d'une version à l'autre
+  build: {
+    rollupOptions: {
+      output: { manualChunks: { react: ['react', 'react-dom', 'react-router-dom'] } },
+    },
+  },
   server: {
     host: true,
     port: 5173,
