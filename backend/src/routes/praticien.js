@@ -7,6 +7,7 @@
 //   POST /patients/:id/documents  (US-25) publication d'un PDF (corps brut application/pdf, 10 Mo max)
 //   GET /agenda?debut=&clinique=  (US-19) agenda unifié de la semaine, toutes cliniques confondues
 //   GET /alertes, POST /alertes/lues (US-20) annulations et reports des patients
+//   GET /patients/:id/comptes-rendus (US-26) historique des comptes-rendus du patient, du plus récent au plus ancien
 const crypto = require('crypto');
 const express = require('express');
 const Joi = require('joi');
@@ -295,6 +296,35 @@ router.post('/alertes/lues', requirePermission('DISPONIBILITES_GERER'), async (r
     [req.user.id],
   );
   res.json({ message: 'Alertes marquées comme lues', lues: rowCount });
+});
+
+// US-26 : continuité des soins — tous les comptes-rendus du patient (des praticiens qui l'ont suivi),
+// du plus récent au plus ancien. Ceux qu'un confrère a marqués « non visibles » restent privés.
+// Mêmes règles que le dossier (US-23) : relation de soins obligatoire, accès journalisé (US-47).
+router.get('/patients/:id/comptes-rendus', requirePermission('DOSSIER_PATIENTS'), async (req, res) => {
+  const idPatient = req.params.id;
+  if (!estUuid(idPatient)) return res.status(404).json({ message: 'Patient introuvable' });
+  if (!(await aRelationDeSoins(req.user.id, idPatient))) {
+    return refuser(req, res, `historique des comptes-rendus du patient ${idPatient} sans relation de soins`);
+  }
+  await journaliserAcces(req, { idPatient, action: 'consultation_dossier' });
+  const { rows } = await db.query(
+    `SELECT crd.id_compte_rendu, crd.contenu_chiffre, crd.visible_patient, crd.date_redaction,
+            cr.debut AS date_consultation, c.ville, u.prenom AS dr_prenom, u.nom AS dr_nom, pr.specialite,
+            (crd.id_praticien = $2) AS de_moi
+       FROM comptes_rendus crd
+       JOIN rendez_vous r ON r.id_rdv = crd.id_rdv
+       JOIN creneaux cr ON cr.id_creneau = r.id_creneau
+       JOIN plages_disponibilite p ON p.id_plage = cr.id_plage
+       JOIN cliniques c ON c.id_clinique = p.id_clinique
+       JOIN utilisateurs u ON u.id_utilisateur = crd.id_praticien
+       JOIN praticiens pr ON pr.id_utilisateur = crd.id_praticien
+      WHERE r.id_patient = $1 AND (crd.visible_patient OR crd.id_praticien = $2)
+      ORDER BY cr.debut DESC, crd.date_redaction DESC`,
+    [idPatient, req.user.id],
+  );
+  const lire = (valeur, contexte) => { try { return dechiffrer(valeur, contexte); } catch { return null; } };
+  return res.json(rows.map(({ contenu_chiffre: chiffre, ...r }) => ({ ...r, contenu: lire(chiffre, r.id_compte_rendu) })));
 });
 
 module.exports = router;
