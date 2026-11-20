@@ -49,6 +49,7 @@ app.use('/api/accueil', require('./routes/accueil'));              // US-30 Akra
 app.use('/api/admin/audit', require('./routes/audit'));            // US-35, US-36 Jasser
 app.use('/api/maintenance', require('./routes/maintenance'));       // US-38 Iheb
 app.use('/api/admin/demandes', require('./routes/demandes'));      // US-16 Akram
+app.use('/api/statistiques', require('./routes/statistiques'));    // US-31 Akram, US-32, US-46, US-50, US-51
 // ===== FIN DES ROUTES =====
 
 // 404 pour toute route /api inconnue
