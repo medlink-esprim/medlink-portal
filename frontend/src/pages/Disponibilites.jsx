@@ -95,7 +95,75 @@ function Contenu() {
         </table>
         <p className="muted">Vous n'apparaissez que dans les cliniques auxquelles l'administration vous a affecté.</p>
       </section>
+      <Absences />
     </div>
+  )
+}
+
+// US-21 : absences et congés — les créneaux libres de la période sont bloqués
+const fmtJour = (iso) => new Date(iso).toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis', weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
+const veille = (iso) => new Date(new Date(iso).getTime() - 1000).toISOString()
+const fmtHeure = (iso) => new Date(iso).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis', dateStyle: 'short', timeStyle: 'short' })
+
+function Absences() {
+  const [absences, setAbsences] = useState([])
+  const [form, setForm] = useState({ dateDebut: '', dateFin: '', motif: '' })
+  const [message, setMessage] = useState(null)
+  const [aPrevenir, setAPrevenir] = useState([])
+  const charger = () => api('/disponibilites/absences').then((r) => r.ok && setAbsences(r.data))
+  useEffect(() => { charger() }, [])
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
+
+  async function bloquer(e) {
+    e.preventDefault()
+    const res = await api('/disponibilites/absences', { method: 'POST', body: form })
+    if (!res.ok) { setMessage({ type: 'error', text: res.data?.message || 'Enregistrement impossible' }); return }
+    setMessage({ type: 'ok', text: `Absence enregistrée : ${res.data.creneauxBloques} créneau(x) bloqué(s), plus aucune réservation possible sur la période.` })
+    setAPrevenir(res.data.rendezVousAPrevenir)
+    setForm({ dateDebut: '', dateFin: '', motif: '' })
+    charger()
+  }
+  async function supprimer(id) {
+    const res = await api(`/disponibilites/absences/${id}`, { method: 'DELETE' })
+    setMessage({ type: res.ok ? 'ok' : 'error', text: res.ok ? `Absence supprimée : ${res.data.creneauxLiberes} créneau(x) de nouveau réservable(s).` : res.data?.message || 'Suppression impossible' })
+    setAPrevenir([])
+    charger()
+  }
+
+  return (
+    <section className="card">
+      <h2>Absences et congés</h2>
+      <form onSubmit={bloquer}>
+        <div className="row">
+          <div><label htmlFor="abs-debut">Du</label><input id="abs-debut" type="date" required value={form.dateDebut} onChange={set('dateDebut')} /></div>
+          <div><label htmlFor="abs-fin">Au (inclus)</label><input id="abs-fin" type="date" required min={form.dateDebut} value={form.dateFin} onChange={set('dateFin')} /></div>
+        </div>
+        <label htmlFor="abs-motif">Motif (facultatif)</label>
+        <input id="abs-motif" maxLength={120} placeholder="Congé, formation…" value={form.motif} onChange={set('motif')} />
+        <div className="actions"><button className="btn-primary btn-auto">Bloquer la période</button></div>
+      </form>
+      {message && <Alert type={message.type}>{message.text}</Alert>}
+      {aPrevenir.length > 0 && (
+        <Alert type="error">
+          {aPrevenir.length} rendez-vous déjà pris sur cette période : reportez-les ou annulez-les avec les patients.
+          <ul>{aPrevenir.map((r) => <li key={r.id_rdv}>{fmtHeure(r.debut)} · {r.ville} · {r.prenom} {r.nom}</li>)}</ul>
+        </Alert>
+      )}
+      <table className="table">
+        <thead><tr><th>Période</th><th>Motif</th><th>Créneaux bloqués</th><th></th></tr></thead>
+        <tbody>
+          {absences.map((a) => (
+            <tr key={a.id_absence}>
+              <td>{fmtJour(a.debut)} → {fmtJour(veille(a.fin))}</td>
+              <td>{a.motif || '—'}</td>
+              <td>{a.creneaux_bloques}</td>
+              <td className="right"><button className="btn-secondary btn-mini" onClick={() => supprimer(a.id_absence)}>Supprimer</button></td>
+            </tr>
+          ))}
+          {absences.length === 0 && <tr><td colSpan="4" className="muted">Aucune absence prévue.</td></tr>}
+        </tbody>
+      </table>
+    </section>
   )
 }
 
