@@ -23,6 +23,7 @@ import DossierPatient from './pages/DossierPatient.jsx'
 import Agenda from './pages/Agenda.jsx'
 import Comptes from './pages/Comptes.jsx'
 import RdvAccueil from './pages/RdvAccueil.jsx'
+import JournalAudit from './pages/JournalAudit.jsx'
 // ===== IMPORTS DES PAGES =====
 
 export default function App() {
@@ -53,6 +54,7 @@ export default function App() {
       <Route path="/praticien/agenda" element={<Agenda />} />                   {/* US-19, US-20 */}
       <Route path="/back-office/comptes" element={<Comptes />} />               {/* US-28, US-29 */}
       <Route path="/back-office/rendez-vous" element={<RdvAccueil />} />        {/* US-30 */}
+      <Route path="/admin/audit" element={<JournalAudit />} />                 {/* US-35, US-36 */}
       {/* ===== ROUTES DES PAGES ===== */}
       <Route path="*" element={<Navigate to="/connexion" replace />} />
     </Routes>

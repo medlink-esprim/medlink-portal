@@ -193,3 +193,7 @@ textarea { width: 100%; padding: .6rem .7rem; border: 1px solid var(--line); bor
 .historique-cr li { border-bottom: 1px solid #EEF0F3; padding: .4rem 0; }
 .ligne-cr { width: 100%; height: auto; margin: 0; padding: .4rem 0; background: none; border: 0; text-align: left; font-weight: 400; font-size: .9rem; color: inherit; }
 .ligne-cr .pill { margin-left: .4rem; }
+/* US-35 : journal d'audit */
+.filtres-audit { display: grid; grid-template-columns: 1.4fr 1.4fr 1.2fr 1fr 1fr; gap: .5rem; margin-bottom: .6rem; }
+.filtres-audit input, .filtres-audit select { margin: 0; }
+@media (max-width: 960px) { .filtres-audit { grid-template-columns: 1fr 1fr; } }
