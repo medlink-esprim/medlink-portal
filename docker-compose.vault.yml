@@ -1,0 +1,31 @@
+# US-45 : Vault en complément de la production.
+#   docker compose -f docker-compose.prod.yml -f docker-compose.vault.yml --env-file .env up -d
+# Le port 8200 n'est jamais publié : seule l'API (réseau Docker) parle à Vault.
+# Première mise en place et redémarrages : voir deploy/VAULT.md
+services:
+  vault:
+    image: hashicorp/vault:1.17
+    restart: unless-stopped
+    command: server
+    cap_add: [IPC_LOCK]
+    environment:
+      VAULT_ADDR: http://127.0.0.1:8200
+    volumes:
+      - vaultdata:/vault/file
+      - ./deploy/vault/vault.hcl:/vault/config/vault.hcl:ro
+      - ./deploy/vault/medlink-api.hcl:/vault/policies/medlink-api.hcl:ro
+
+  api:
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_ROLE_ID: ${VAULT_ROLE_ID}
+      VAULT_SECRET_ID_FILE: /run/secrets/vault_secret_id
+    secrets: [vault_secret_id]
+    depends_on: [vault]
+
+secrets:
+  vault_secret_id:
+    file: ./deploy/vault/secret_id      # créé par initialiser.sh, droits 600, jamais commité
+
+volumes:
+  vaultdata:
