@@ -26,6 +26,7 @@ import RdvAccueil from './pages/RdvAccueil.jsx'
 import JournalAudit from './pages/JournalAudit.jsx'
 import Maintenance from './pages/Maintenance.jsx'
 import BandeauMaintenance from './components/BandeauMaintenance.jsx'
+import DemandesDonnees from './pages/DemandesDonnees.jsx'
 // ===== IMPORTS DES PAGES =====
 
 export default function App() {
@@ -60,6 +61,7 @@ export default function App() {
       <Route path="/back-office/rendez-vous" element={<RdvAccueil />} />        {/* US-30 */}
       <Route path="/admin/audit" element={<JournalAudit />} />                 {/* US-35, US-36 */}
       <Route path="/admin/maintenance" element={<Maintenance />} />           {/* US-38 */}
+      <Route path="/admin/demandes" element={<DemandesDonnees />} />           {/* US-16 */}
       {/* ===== ROUTES DES PAGES ===== */}
       <Route path="*" element={<Navigate to="/connexion" replace />} />
     </Routes>

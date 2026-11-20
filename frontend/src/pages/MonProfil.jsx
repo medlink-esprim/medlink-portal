@@ -100,6 +100,7 @@ function Contenu() {
           <p><Link to="/politique-confidentialite">Lire la politique</Link></p>
         </section>
         <AccesDossier />
+        <MesDonnees />
       </div>
     </div>
   )
@@ -132,6 +133,52 @@ function AccesDossier() {
         ))}
       </ul>
       <p className="small-note">Chaque accès à votre dossier médical est enregistré et ne peut pas être effacé.</p>
+    </section>
+  )
+}
+
+// US-16 : droits INPDP — demander l'export ou la suppression de ses données, suivre la demande
+const STATUTS_DEMANDE = { recue: ['Reçue', 'pill-new'], en_cours: ['En cours', 'pill-new'], traitee: ['Traitée', 'pill-ok'], refusee: ['Refusée', 'pill-ko'] }
+
+function MesDonnees() {
+  const [demandes, setDemandes] = useState([])
+  const [message, setMessage] = useState(null)
+  const [confirmerSuppression, setConfirmerSuppression] = useState(false)
+  const charger = () => api('/patients/moi/demandes').then((r) => r.ok && setDemandes(r.data))
+  useEffect(() => { charger() }, [])
+
+  async function demander(type) {
+    const res = await api('/patients/moi/demandes', { method: 'POST', body: { type } })
+    setMessage({ type: res.ok ? 'ok' : 'error', text: res.data?.message || 'Demande impossible' })
+    setConfirmerSuppression(false)
+    charger()
+  }
+
+  return (
+    <section className="card">
+      <h2>Mes données personnelles</h2>
+      <p className="muted">Loi INPDP : vous pouvez obtenir une copie de vos données ou demander leur suppression. L'administration traite votre demande et vous informe par e-mail.</p>
+      <div className="actions-ligne">
+        <button className="btn-secondary" onClick={() => demander('export')}>Demander l'export</button>
+        {!confirmerSuppression
+          ? <button className="btn-danger" onClick={() => setConfirmerSuppression(true)}>Demander la suppression</button>
+          : <button className="btn-danger" onClick={() => demander('suppression')}>Confirmer la demande de suppression</button>}
+      </div>
+      {confirmerSuppression && <p className="small-note">Votre compte sera désactivé. Votre dossier médical est conservé pendant la durée prévue par la loi.</p>}
+      {message && <Alert type={message.type}>{message.text}</Alert>}
+      <ul className="journal-acces">
+        {demandes.map((d) => {
+          const [libelle, classe] = STATUTS_DEMANDE[d.statut]
+          return (
+            <li key={d.id_demande}>
+              <strong>{d.type === 'export' ? 'Export' : 'Suppression'}</strong> <span className={`pill ${classe}`}>{libelle}</span>
+              <span className="muted"> · {fmtDateHeure(d.date_demande)}</span>
+              {d.reponse && <><br /><span className="muted">{d.reponse}</span></>}
+              {d.export_disponible && <><br /><a href={`/api/patients/moi/demandes/${d.id_demande}/export`}>Télécharger mes données (JSON)</a></>}
+            </li>
+          )
+        })}
+      </ul>
     </section>
   )
 }

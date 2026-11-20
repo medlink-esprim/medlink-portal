@@ -200,3 +200,5 @@ textarea { width: 100%; padding: .6rem .7rem; border: 1px solid var(--line); bor
 /* US-38 : bandeau de maintenance */
 .bandeau-maintenance { position: sticky; top: 0; z-index: 50; background: #FEF3C7; color: #78350F; border-bottom: 1px solid #F59E0B; padding: .55rem 2.5rem .55rem 1rem; font-size: .9rem; text-align: center; }
 .bandeau-maintenance button { position: absolute; right: .6rem; top: .3rem; width: auto; height: auto; margin: 0; padding: 0 .4rem; background: none; border: 0; font-size: 1.2rem; color: inherit; }
+/* US-16 : demandes INPDP */
+.actions-colonne { display: flex; flex-direction: column; gap: .3rem; align-items: flex-end; }
