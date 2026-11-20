@@ -52,6 +52,15 @@ async function creerAdmin(prenom = 'Sami', nom = 'Bouazizi') {
   return u;
 }
 
+// Membre de la Direction avec MFA activé (Sprint 5)
+async function creerDirection(prenom = 'Hela', nom = 'Mejri') {
+  const u = await creerUtilisateur('DIRECTION', prenom, nom);
+  u.secret = genererSecret();
+  await db.query('UPDATE utilisateurs SET mfa_active = true, mfa_secret_chiffre = $1 WHERE id_utilisateur = $2', [chiffrer(u.secret, u.id), u.id]);
+  await db.query("INSERT INTO personnels (id_utilisateur, fonction) VALUES ($1, 'Direction')", [u.id]);
+  return u;
+}
+
 // Agent administratif (sans MFA) rattaché à la clinique de la ville donnée (Sprint 4)
 async function creerAgent(ville = 'Sousse', prenom = 'Rim', nom = 'Mansour') {
   const u = await creerUtilisateur('AGENT_ADMIN', prenom, nom);
@@ -133,4 +142,4 @@ async function nettoyer(...comptes) {
   await db.query('DELETE FROM utilisateurs WHERE id_utilisateur = ANY($1::uuid[])', [ids]);
 }
 
-module.exports = { app, db, creerPatient, creerPraticien, creerAdmin, creerAgent, connecter, idClinique, prochainJour, creerRdv, creerCreneau, nettoyer };
+module.exports = { app, db, creerPatient, creerPraticien, creerAdmin, creerAgent, creerDirection, connecter, idClinique, prochainJour, creerRdv, creerCreneau, nettoyer };
