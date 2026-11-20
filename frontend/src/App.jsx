@@ -1,41 +1,45 @@
+// US-63 : chaque page est chargée à la demande (React.lazy) ; seule la connexion est dans le premier fichier
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import Health from './pages/Health.jsx'
 import Connexion from './pages/Connexion.jsx'
-import Accueil from './pages/Accueil.jsx'
-import Inscription from './pages/Inscription.jsx'
-import Verification from './pages/Verification.jsx'
-import MotDePasseOublie from './pages/MotDePasseOublie.jsx'
-import Reinitialisation from './pages/Reinitialisation.jsx'
-import Activation from './pages/Activation.jsx'
-import CreationCompte from './pages/CreationCompte.jsx'
-import VerificationMfa from './pages/VerificationMfa.jsx'
-import EnrolementMfa from './pages/EnrolementMfa.jsx'
-import Disponibilites from './pages/Disponibilites.jsx'
-import PrendreRendezVous from './pages/PrendreRendezVous.jsx'
-import ConfirmerRendezVous from './pages/ConfirmerRendezVous.jsx'
-import RolesDroits from './pages/RolesDroits.jsx'
-import Politique from './pages/Politique.jsx'
-import MesRendezVous from './pages/MesRendezVous.jsx'
-import MonProfil from './pages/MonProfil.jsx'
-import MesResultats from './pages/MesResultats.jsx'
-import MesPatients from './pages/MesPatients.jsx'
-import DossierPatient from './pages/DossierPatient.jsx'
-import Agenda from './pages/Agenda.jsx'
-import Comptes from './pages/Comptes.jsx'
-import RdvAccueil from './pages/RdvAccueil.jsx'
-import JournalAudit from './pages/JournalAudit.jsx'
-import Maintenance from './pages/Maintenance.jsx'
 import BandeauMaintenance from './components/BandeauMaintenance.jsx'
 import HorsService from './components/HorsService.jsx'
-import DemandesDonnees from './pages/DemandesDonnees.jsx'
-import Supervision from './pages/Supervision.jsx'
-import Synthese from './pages/Synthese.jsx'
-// ===== IMPORTS DES PAGES =====
+
+const Health = lazy(() => import('./pages/Health.jsx'))
+const Accueil = lazy(() => import('./pages/Accueil.jsx'))
+const Inscription = lazy(() => import('./pages/Inscription.jsx'))
+const Verification = lazy(() => import('./pages/Verification.jsx'))
+const MotDePasseOublie = lazy(() => import('./pages/MotDePasseOublie.jsx'))
+const Reinitialisation = lazy(() => import('./pages/Reinitialisation.jsx'))
+const Activation = lazy(() => import('./pages/Activation.jsx'))
+const CreationCompte = lazy(() => import('./pages/CreationCompte.jsx'))
+const VerificationMfa = lazy(() => import('./pages/VerificationMfa.jsx'))
+const EnrolementMfa = lazy(() => import('./pages/EnrolementMfa.jsx'))
+const Disponibilites = lazy(() => import('./pages/Disponibilites.jsx'))
+const PrendreRendezVous = lazy(() => import('./pages/PrendreRendezVous.jsx'))
+const ConfirmerRendezVous = lazy(() => import('./pages/ConfirmerRendezVous.jsx'))
+const RolesDroits = lazy(() => import('./pages/RolesDroits.jsx'))
+const Politique = lazy(() => import('./pages/Politique.jsx'))
+const MesRendezVous = lazy(() => import('./pages/MesRendezVous.jsx'))
+const MonProfil = lazy(() => import('./pages/MonProfil.jsx'))
+const MesResultats = lazy(() => import('./pages/MesResultats.jsx'))
+const MesPatients = lazy(() => import('./pages/MesPatients.jsx'))
+const DossierPatient = lazy(() => import('./pages/DossierPatient.jsx'))
+const Agenda = lazy(() => import('./pages/Agenda.jsx'))
+const Comptes = lazy(() => import('./pages/Comptes.jsx'))
+const RdvAccueil = lazy(() => import('./pages/RdvAccueil.jsx'))
+const JournalAudit = lazy(() => import('./pages/JournalAudit.jsx'))
+const Maintenance = lazy(() => import('./pages/Maintenance.jsx'))
+const DemandesDonnees = lazy(() => import('./pages/DemandesDonnees.jsx'))
+const Supervision = lazy(() => import('./pages/Supervision.jsx'))
+const Synthese = lazy(() => import('./pages/Synthese.jsx'))
+// ===== IMPORTS DES PAGES (const Page = lazy(() => import('./pages/Page.jsx'))) =====
 
 export default function App() {
   return (
     <HorsService>                                                               {/* US-49 */}
     <BandeauMaintenance />
+    <Suspense fallback={<div className="chargement" aria-busy="true">Chargement…</div>}>
     <Routes>
       <Route path="/" element={<Navigate to="/connexion" replace />} />
       <Route path="/health" element={<Health />} />                               {/* US-56 */}
@@ -70,6 +74,7 @@ export default function App() {
       {/* ===== ROUTES DES PAGES ===== */}
       <Route path="*" element={<Navigate to="/connexion" replace />} />
     </Routes>
+    </Suspense>
     </HorsService>
   )
 }
