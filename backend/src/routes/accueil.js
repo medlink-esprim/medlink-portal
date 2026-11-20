@@ -16,6 +16,8 @@ const { chiffrer } = require('../security/chiffrement');
 const { journaliser } = require('../security/journal');
 const { notifierPatient } = require('../services/notifications');
 
+const { conflitPatient } = require('../services/agenda');
+
 const router = express.Router();
 router.use(requirePermission('RDV_POUR_PATIENT'));
 
@@ -120,6 +122,8 @@ router.post('/rendez-vous', validate(reservationSchema), async (req, res) => {
       );
       if (!p) return { status: 404, body: { message: 'Patient introuvable' } };
       if (p.statut === 'desactive') return { status: 422, body: { message: 'Le compte de ce patient est désactivé' } };
+      // mêmes règles qu'en ligne : pas de chevauchement, un rendez-vous par jour chez le même praticien
+      const conflit = await conflitPatient(client, { idPatient, idCreneau, parAccueil: true });
 
       // verrou sur le créneau, comme pour une réservation en ligne (US-07)
       const { rows: [c] } = await client.query(
@@ -132,6 +136,7 @@ router.post('/rendez-vous', validate(reservationSchema), async (req, res) => {
       if (!c) return { status: 404, body: { message: 'Créneau introuvable' } };
       if (c.id_clinique !== req.clinique.id_clinique) return { refus: true };
       if (c.statut !== 'libre' || !c.a_venir) return { status: 409, body: PRIS };
+      if (conflit) return conflit;
 
       const { rows: [rdv] } = await client.query(
         `INSERT INTO rendez_vous (id_patient, id_creneau, motif_chiffre, statut, origine, id_createur)

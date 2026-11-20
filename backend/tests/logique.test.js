@@ -218,9 +218,9 @@ describe('C. cohérence des créneaux (absences, annulations, réactivation)', (
   });
   test('C6 : compte-rendu impossible avant la consultation ou sur un rendez-vous annulé', async () => {
     const futur = await creerRdv(amine, dr, { dansJours: 52, heure: '09:00' });
-    expect((await sDr.post(`/api/praticien/rendez-vous/${futur.idRdv}/compte-rendu`).send({ contenu: 'RAS', visiblePatient: false })).status).toBe(422);
+    expect((await sDr.post(`/api/praticien/rendez-vous/${futur.idRdv}/compte-rendu`).send({ contenu: 'Examen clinique normal.', visiblePatient: false })).status).toBe(422);
     const annule = await creerRdv(amine, dr, { dansJours: -3, heure: '09:00', statut: 'annule' });
-    expect((await sDr.post(`/api/praticien/rendez-vous/${annule.idRdv}/compte-rendu`).send({ contenu: 'RAS', visiblePatient: false })).status).toBe(409);
+    expect((await sDr.post(`/api/praticien/rendez-vous/${annule.idRdv}/compte-rendu`).send({ contenu: 'Examen clinique normal.', visiblePatient: false })).status).toBe(409);
   });
   test('C7 : annuler deux fois, ou le rendez-vous d\'un autre : refusé', async () => {
     const c = await creerCreneau(dr, { dansJours: 54, heure: '10:00' });

@@ -248,7 +248,8 @@ router.patch('/:id/statut', validate(statutSchema), async (req, res) => {
       `UPDATE creneaux cr SET statut = 'libre'
          FROM plages_disponibilite p
         WHERE p.id_plage = cr.id_plage AND p.id_praticien = $1 AND cr.statut = 'bloque' AND cr.debut > now()
-          AND NOT EXISTS (SELECT 1 FROM rendez_vous rv WHERE rv.id_creneau = cr.id_creneau AND rv.statut = 'planifie')`,
+          AND NOT EXISTS (SELECT 1 FROM rendez_vous rv WHERE rv.id_creneau = cr.id_creneau AND rv.statut = 'planifie')
+          AND NOT EXISTS (SELECT 1 FROM absences a WHERE a.id_praticien = $1 AND cr.debut < a.fin AND cr.fin > a.debut)   -- US-21`,
       [u.id_utilisateur],
     );
     return { status: 200, evenement: 'COMPTE_REACTIVE', compte: u, body: { message: 'Compte réactivé' } };
