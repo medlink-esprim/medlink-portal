@@ -143,21 +143,21 @@ test('US-08 : confirmation enregistrée et envoyée par e-mail après la réserv
 // Réserve un créneau libre d'au moins 7 jours plus tard (bien au-delà du délai de 24 h)
 // Créneaux libres du praticien, en écartant les jours où le patient a déjà un rendez-vous planifié avec lui
 // (règle : un rendez-vous par jour chez le même praticien)
-async function libresSansConflit(debut) {
+async function libresSansConflit(debut, idPatient = patient.id) {
   const libres = (await agentPatient.get(`/api/creneaux?praticien=${praticien.id}&debut=${debut}`)).body.filter((c) => c.statut === 'libre');
   const { rows } = await db.query(
     `SELECT DISTINCT to_char(cr.debut AT TIME ZONE 'Africa/Tunis', 'YYYY-MM-DD') AS j
        FROM rendez_vous r JOIN creneaux cr USING (id_creneau) JOIN plages_disponibilite p USING (id_plage)
       WHERE r.id_patient = $1 AND p.id_praticien = $2 AND r.statut = 'planifie'`,
-    [patient.id, praticien.id],
+    [idPatient, praticien.id],
   );
   const jours = new Set(rows.map((r) => r.j));
   return libres.filter((c) => !jours.has(new Date(c.debut).toLocaleDateString('sv-SE', { timeZone: 'Africa/Tunis' })));
 }
 
-async function reserver(agent, decalage = 0) {
+async function reserver(agent, decalage = 0, idPatient = patient.id) {
   const debut = new Date(new Date(`${prochainJour(1)}T00:00:00Z`).getTime() + 7 * 86400000).toISOString().slice(0, 10);
-  const libres = await libresSansConflit(debut);
+  const libres = await libresSansConflit(debut, idPatient);
   const c = libres[decalage];
   const res = await agent.post('/api/rendez-vous').send({ idCreneau: c.id_creneau, motif: 'Contrôle' });
   expect(res.status).toBe(201);
@@ -212,7 +212,8 @@ test('US-11 : « Mes rendez-vous » liste uniquement les rendez-vous du patient,
 test('US-10 / TA-3.4 : report => ancien créneau libéré, nouveau rendez-vous lié, praticien prévenu', async () => {
   const { idRdv, creneau } = await reserver(agentPatient);
   const debut = new Date(new Date(`${prochainJour(1)}T00:00:00Z`).getTime() + 7 * 86400000).toISOString().slice(0, 10);
-  const libres = await libresSansConflit(debut);
+  // report le même jour chez le même praticien : permis (l'ancien rendez-vous est exclu de la règle « un par jour »)
+  const libres = (await agentPatient.get(`/api/creneaux?praticien=${praticien.id}&debut=${debut}`)).body.filter((c) => c.statut === 'libre');
   const cible = libres[0];
 
   expect((await agentPatient.patch(`/api/rendez-vous/${idRdv}/report`).send({ idCreneau: creneau.id_creneau })).status).toBe(422);
@@ -237,6 +238,7 @@ test('US-10 / TA-3.4 : report => ancien créneau libéré, nouveau rendez-vous l
 
   // l'ancien rendez-vous ne peut plus être reporté, et un créneau déjà pris est refusé
   expect((await agentPatient.patch(`/api/rendez-vous/${idRdv}/report`).send({ idCreneau: libres[1].id_creneau })).status).toBe(409);
-  const { idRdv: autreRdv } = await reserver(agentPatient);
-  expect((await agentPatient.patch(`/api/rendez-vous/${autreRdv}/report`).send({ idCreneau: cible.id_creneau })).status).toBe(409);
+  const autre = await connecter(autrePatient);
+  const { idRdv: autreRdv } = await reserver(autre, 0, autrePatient.id);
+  expect((await autre.patch(`/api/rendez-vous/${autreRdv}/report`).send({ idCreneau: cible.id_creneau })).status).toBe(409);
 });
