@@ -104,6 +104,25 @@ async function creerRdv(patient, praticien, { ville = 'Sousse', dansJours = 2, h
   return { idRdv: r.id_rdv, idCreneau: c.id_creneau, idPlage: p.id_plage };
 }
 
+// Créneau libre à venir créé directement en base (Sprint 5) : plage d'un jour, 30 min à l'heure donnée
+async function creerCreneau(praticien, { ville = 'Sousse', dansJours = 3, heure = '10:00' } = {}) {
+  const { rows: [p] } = await db.query(
+    `INSERT INTO plages_disponibilite (id_praticien, id_clinique, jour_semaine, heure_debut, heure_fin, duree_creneau, date_debut, date_fin)
+     SELECT $1, c.id_clinique, extract(isodow FROM j)::int, $3::time, $3::time + interval '30 minutes', 30, j, j
+       FROM cliniques c, (SELECT (now() AT TIME ZONE 'Africa/Tunis')::date + $4::int AS j) d
+      WHERE c.ville = $2
+     RETURNING id_plage, date_debut`,
+    [praticien.id, ville, heure, dansJours],
+  );
+  const { rows: [c] } = await db.query(
+    `INSERT INTO creneaux (id_plage, debut, fin)
+     VALUES ($1, ($2::date + $3::time) AT TIME ZONE 'Africa/Tunis', ($2::date + $3::time + interval '30 minutes') AT TIME ZONE 'Africa/Tunis')
+     RETURNING id_creneau`,
+    [p.id_plage, p.date_debut, heure],
+  );
+  return c.id_creneau;
+}
+
 async function nettoyer(...comptes) {
   const ids = comptes.filter(Boolean).map((c) => c.id);
   await db.query(
@@ -114,4 +133,4 @@ async function nettoyer(...comptes) {
   await db.query('DELETE FROM utilisateurs WHERE id_utilisateur = ANY($1::uuid[])', [ids]);
 }
 
-module.exports = { app, db, creerPatient, creerPraticien, creerAdmin, creerAgent, connecter, idClinique, prochainJour, creerRdv, nettoyer };
+module.exports = { app, db, creerPatient, creerPraticien, creerAdmin, creerAgent, connecter, idClinique, prochainJour, creerRdv, creerCreneau, nettoyer };

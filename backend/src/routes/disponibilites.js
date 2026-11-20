@@ -118,8 +118,102 @@ router.post('/', validate(schema), async (req, res) => {
       [idPraticien, b.idClinique, b.jourSemaine, b.heureDebut, b.heureFin, b.dureeCreneau, c.date_debut, b.dateFin],
     );
     const generes = await client.query(SQL_GENERATION, [plage.id_plage]);
+    // US-21 : les créneaux qui tombent pendant une absence naissent bloqués
+    await client.query(
+      `UPDATE creneaux cr SET statut = 'bloque'
+         FROM absences a
+        WHERE cr.id_plage = $1 AND a.id_praticien = $2 AND cr.statut = 'libre'
+          AND cr.debut < a.fin AND cr.fin > a.debut`,
+      [plage.id_plage, idPraticien],
+    );
     return { status: 201, body: { idPlage: plage.id_plage, creneauxGeneres: generes.rowCount } };
   });
+  return res.status(outcome.status).json(outcome.body);
+});
+
+// ===================== US-21 : absences et congés =====================
+// Une absence couvre des journées entières (heure de Tunis). Ses créneaux libres sont bloqués :
+// aucun patient ne peut plus les réserver. Les rendez-vous déjà pris ne sont pas annulés
+// automatiquement : ils sont renvoyés pour que le praticien les reporte ou les annule.
+const absenceSchema = Joi.object({
+  dateDebut: dateIso.required(),
+  dateFin: dateIso.required(),
+  motif: Joi.string().trim().max(120).allow(''),
+});
+const estUuid = (v) => !Joi.string().guid().validate(v).error;
+
+router.get('/absences', async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT a.id_absence, a.debut, a.fin, a.motif,
+            (SELECT count(*)::int FROM creneaux cr JOIN plages_disponibilite p USING (id_plage)
+              WHERE p.id_praticien = a.id_praticien AND cr.statut = 'bloque' AND cr.debut < a.fin AND cr.fin > a.debut) AS creneaux_bloques
+       FROM absences a
+      WHERE a.id_praticien = $1 AND a.fin > now()
+      ORDER BY a.debut`,
+    [req.user.id],
+  );
+  res.json(rows);
+});
+
+router.post('/absences', validate(absenceSchema), async (req, res) => {
+  const { dateDebut, dateFin, motif } = req.body;
+  if (dateFin < dateDebut) return res.status(400).json({ message: 'La date de fin précède la date de début' });
+  const outcome = await db.withTransaction(async (client) => {
+    const { rows: [v] } = await client.query(
+      `SELECT $1::date < (now() AT TIME ZONE 'Africa/Tunis')::date AS passee, ($2::date - $1::date) > 365 AS trop_longue,
+              $1::date::timestamp AT TIME ZONE 'Africa/Tunis' AS debut,
+              ($2::date + 1)::timestamp AT TIME ZONE 'Africa/Tunis' AS fin`,
+      [dateDebut, dateFin],
+    );
+    if (v.passee) return { status: 422, body: { message: 'Une absence ne peut pas commencer dans le passé' } };
+    if (v.trop_longue) return { status: 422, body: { message: 'Une absence dure au plus un an' } };
+    const { rows: [a] } = await client.query(
+      'INSERT INTO absences (id_praticien, debut, fin, motif) VALUES ($1, $2, $3, $4) RETURNING id_absence',
+      [req.user.id, v.debut, v.fin, motif || null],
+    );
+    const bloques = await client.query(
+      `UPDATE creneaux cr SET statut = 'bloque'
+         FROM plages_disponibilite p
+        WHERE p.id_plage = cr.id_plage AND p.id_praticien = $1 AND cr.statut = 'libre'
+          AND cr.debut < $3 AND cr.fin > $2`,
+      [req.user.id, v.debut, v.fin],
+    );
+    const { rows: rdv } = await client.query(
+      `SELECT r.id_rdv, cr.debut, c.ville, u.prenom, u.nom
+         FROM rendez_vous r
+         JOIN creneaux cr USING (id_creneau)
+         JOIN plages_disponibilite p USING (id_plage)
+         JOIN cliniques c ON c.id_clinique = p.id_clinique
+         JOIN utilisateurs u ON u.id_utilisateur = r.id_patient
+        WHERE p.id_praticien = $1 AND r.statut = 'planifie' AND cr.debut < $3 AND cr.fin > $2
+        ORDER BY cr.debut`,
+      [req.user.id, v.debut, v.fin],
+    );
+    return { status: 201, body: { idAbsence: a.id_absence, creneauxBloques: bloques.rowCount, rendezVousAPrevenir: rdv } };
+  });
+  return res.status(outcome.status).json(outcome.body);
+});
+
+router.delete('/absences/:id', async (req, res) => {
+  if (!estUuid(req.params.id)) return res.status(404).json({ message: 'Absence introuvable' });
+  const outcome = await db.withTransaction(async (client) => {
+    const { rows: [a] } = await client.query('SELECT * FROM absences WHERE id_absence = $1 FOR UPDATE', [req.params.id]);
+    if (!a) return { status: 404, body: { message: 'Absence introuvable' } };
+    if (a.id_praticien !== req.user.id) return { refus: true };
+    await client.query('DELETE FROM absences WHERE id_absence = $1', [a.id_absence]);
+    // créneaux de la période rendus réservables, sauf s'ils sont couverts par une autre absence
+    const liberes = await client.query(
+      `UPDATE creneaux cr SET statut = 'libre'
+         FROM plages_disponibilite p
+        WHERE p.id_plage = cr.id_plage AND p.id_praticien = $1 AND cr.statut = 'bloque'
+          AND cr.debut > now() AND cr.debut < $3 AND cr.fin > $2
+          AND NOT EXISTS (SELECT 1 FROM absences x WHERE x.id_praticien = $1 AND cr.debut < x.fin AND cr.fin > x.debut)
+          AND NOT EXISTS (SELECT 1 FROM rendez_vous r WHERE r.id_creneau = cr.id_creneau AND r.statut = 'planifie')`,
+      [req.user.id, a.debut, a.fin],
+    );
+    return { status: 200, body: { message: 'Absence supprimée', creneauxLiberes: liberes.rowCount } };
+  });
+  if (outcome.refus) return refuser(req, res, `absence ${req.params.id} d'un autre praticien`);
   return res.status(outcome.status).json(outcome.body);
 });
 
