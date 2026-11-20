@@ -9,10 +9,17 @@ async function demarrer() {
   const app = require('./app');
   const config = require('./config');
   const { envoyerRappels } = require('./services/rappels');
+  const { marquerAbsences } = require('./services/presences');
 
   app.listen(config.port, () => {
     console.log(`API MedLink démarrée sur le port ${config.port} (${config.isProd ? 'production' : 'développement'})`);
   });
+
+  // rendez-vous passés sans présence notée depuis 48 h : « manqué » (au démarrage, la VM pouvant être
+  // arrêtée la nuit, puis chaque jour à 03:00)
+  const absences = () => marquerAbsences().catch((err) => console.error('Marquage des absences en échec :', err.message));
+  absences();
+  cron.schedule('0 3 * * *', absences, { timezone: 'Africa/Tunis' });
 
   // US-48 : rappels automatiques, toutes les 15 minutes (désactivables avec RAPPELS_ACTIFS=false)
   if (config.rappelsActifs) {
