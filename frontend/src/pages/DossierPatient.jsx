@@ -137,6 +137,7 @@ function Contenu() {
               ))}
             </ul>
           </section>
+          <HistoriqueComptesRendus idPatient={patient.id_patient} version={rendezVous.filter((r) => r.compteRendu).length} />
           <PublierDocument idPatient={patient.id_patient} onPublie={charger} />
         </div>
         <div className="colonne">
@@ -154,6 +155,31 @@ function Contenu() {
         </div>
       </div>
     </>
+  )
+}
+
+// US-26 : historique des comptes-rendus du patient (tous praticiens), du plus récent au plus ancien
+function HistoriqueComptesRendus({ idPatient, version }) {
+  const [liste, setListe] = useState(null)
+  const [ouvert, setOuvert] = useState(null)
+  useEffect(() => { api(`/praticien/patients/${idPatient}/comptes-rendus`).then((r) => setListe(r.ok ? r.data : [])) }, [idPatient, version])
+  if (!liste) return null
+  return (
+    <section className="card">
+      <h2>Historique des comptes-rendus</h2>
+      {liste.length === 0 && <p className="muted">Aucun compte-rendu pour ce patient.</p>}
+      <ul className="historique-cr">
+        {liste.map((c) => (
+          <li key={c.id_compte_rendu}>
+            <button className="ligne-cr" onClick={() => setOuvert(ouvert === c.id_compte_rendu ? null : c.id_compte_rendu)}>
+              <strong>{fmtDateHeure(c.date_consultation)}</strong> · {c.ville} · Dr {c.dr_prenom} {c.dr_nom} ({c.specialite})
+              {c.de_moi && <span className="pill">Vous</span>}{!c.visible_patient && <span className="pill pill-ko">non visible du patient</span>}
+            </button>
+            {ouvert === c.id_compte_rendu && <div className="texte-compte-rendu">{c.contenu}</div>}
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
