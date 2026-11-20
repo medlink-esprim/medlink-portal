@@ -27,6 +27,7 @@ import JournalAudit from './pages/JournalAudit.jsx'
 import Maintenance from './pages/Maintenance.jsx'
 import BandeauMaintenance from './components/BandeauMaintenance.jsx'
 import DemandesDonnees from './pages/DemandesDonnees.jsx'
+import Supervision from './pages/Supervision.jsx'
 // ===== IMPORTS DES PAGES =====
 
 export default function App() {
@@ -62,6 +63,7 @@ export default function App() {
       <Route path="/admin/audit" element={<JournalAudit />} />                 {/* US-35, US-36 */}
       <Route path="/admin/maintenance" element={<Maintenance />} />           {/* US-38 */}
       <Route path="/admin/demandes" element={<DemandesDonnees />} />           {/* US-16 */}
+      <Route path="/back-office/supervision" element={<Supervision />} />      {/* US-31, US-32 */}
       {/* ===== ROUTES DES PAGES ===== */}
       <Route path="*" element={<Navigate to="/connexion" replace />} />
     </Routes>

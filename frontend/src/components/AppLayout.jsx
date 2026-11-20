@@ -18,9 +18,9 @@ const LIBELLES = {
 const MENUS = {
   PATIENT: [['/accueil', 'Tableau de bord'], ['/patient/rendez-vous/nouveau', 'Prendre rendez-vous', 'RDV_PRENDRE'], ['/patient/rendez-vous', 'Mes rendez-vous', 'RDV_PRENDRE'], ['/patient/resultats', 'Mes résultats', 'DOSSIER_PROPRE'], ['/patient/profil', 'Mon profil']],
   PRATICIEN: [['/accueil', 'Tableau de bord'], ['/praticien/agenda', 'Mon agenda', 'DISPONIBILITES_GERER'], ['/praticien/patients', 'Mes patients', 'DOSSIER_PATIENTS'], ['/praticien/disponibilites', 'Disponibilités', 'DISPONIBILITES_GERER']],
-  AGENT_ADMIN: [['/accueil', 'Tableau de bord'], ['/back-office/rendez-vous', 'Rendez-vous patient', 'RDV_POUR_PATIENT'], ['/back-office/comptes', 'Comptes', 'COMPTES_GERER'], ['/back-office/comptes/nouveau', 'Créer un compte', 'COMPTES_GERER']],
-  ADMIN: [['/accueil', 'Tableau de bord'], ['/back-office/comptes', 'Comptes', 'COMPTES_GERER'], ['/back-office/comptes/nouveau', 'Créer un compte', 'COMPTES_GERER'], ['/admin/roles', 'Rôles et droits', 'ROLES_GERER'], ['/admin/audit', "Journal d'audit", 'AUDIT_CONSULTER'], ['/admin/maintenance', 'Maintenance', 'MAINTENANCE_GERER'], ['/admin/demandes', 'Demandes INPDP', 'DEMANDES_TRAITER']],
-  DIRECTION: [['/accueil', 'Tableau de bord']],
+  AGENT_ADMIN: [['/accueil', 'Tableau de bord'], ['/back-office/supervision', 'Supervision', 'SUPERVISION_CONSULTER'], ['/back-office/rendez-vous', 'Rendez-vous patient', 'RDV_POUR_PATIENT'], ['/back-office/comptes', 'Comptes', 'COMPTES_GERER'], ['/back-office/comptes/nouveau', 'Créer un compte', 'COMPTES_GERER']],
+  ADMIN: [['/accueil', 'Tableau de bord'], ['/back-office/supervision', 'Supervision', 'SUPERVISION_CONSULTER'], ['/back-office/comptes', 'Comptes', 'COMPTES_GERER'], ['/back-office/comptes/nouveau', 'Créer un compte', 'COMPTES_GERER'], ['/admin/roles', 'Rôles et droits', 'ROLES_GERER'], ['/admin/audit', "Journal d'audit", 'AUDIT_CONSULTER'], ['/admin/maintenance', 'Maintenance', 'MAINTENANCE_GERER'], ['/admin/demandes', 'Demandes INPDP', 'DEMANDES_TRAITER']],
+  DIRECTION: [['/accueil', 'Tableau de bord'], ['/back-office/supervision', 'Supervision', 'SUPERVISION_CONSULTER']],
 }
 
 function sousTitre(user) {
