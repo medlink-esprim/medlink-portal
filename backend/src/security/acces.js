@@ -5,6 +5,7 @@
 // La même information est écrite sur une ligne JSON (docker compose logs api | grep ACCES_DOSSIER).
 const db = require('../db');
 const { journaliser } = require('./journal');
+const { verifierAccesSuspects } = require('./surveillance');
 
 const ACTIONS = ['consultation_dossier', 'consultation_document', 'telechargement_document',
   'redaction_compte_rendu', 'publication_document'];
@@ -17,6 +18,8 @@ async function journaliserAcces(req, { idPatient, idDocument = null, action }, c
     [req.user.id, req.user.role, idPatient, idDocument, action, req.ip || null],
   );
   journaliser('ACCES_DOSSIER', req, { patient: idPatient, document: idDocument, action });
+  // US-36 : détection d'accès suspect ; une erreur de surveillance n'empêche jamais l'accès
+  try { await verifierAccesSuspects(req); } catch (err) { console.error(`Surveillance des accès : ${err.message}`); }
 }
 
 module.exports = { journaliserAcces, ACTIONS };

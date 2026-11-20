@@ -1,4 +1,5 @@
 // US-35 : journal d'audit — qui a consulté quel dossier, quelle action, quand (journal en ajout seul, US-47).
+// US-36 : alertes d'accès suspect (nombre anormal de dossiers ouverts en une heure).
 import { useEffect, useState } from 'react'
 import { api } from '../api.js'
 import AppLayout from '../components/AppLayout.jsx'
@@ -11,6 +12,31 @@ const ACTIONS = {
 const ROLES = { PATIENT: 'Patient', PRATICIEN: 'Praticien', AGENT_ADMIN: 'Agent', ADMIN: 'Admin', DIRECTION: 'Direction' }
 const fmt = (iso) => new Date(iso).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis', dateStyle: 'short', timeStyle: 'medium' })
 const VIDE = { utilisateur: '', patient: '', action: '', du: '', au: '' }
+
+function AlertesSecurite() {
+  const [data, setData] = useState(null)
+  const charger = () => api('/admin/audit/alertes').then((r) => r.ok && setData(r.data))
+  useEffect(() => { charger() }, [])
+  if (!data || data.alertes.length === 0) return null
+  async function traiter(id) { await api(`/admin/audit/alertes/${id}`, { method: 'PATCH' }); charger() }
+  return (
+    <section className="card alertes">
+      <div className="entete-alertes">
+        <h2>Alertes de sécurité {data.nouvelles > 0 && <span className="pill pill-ko">{data.nouvelles} nouvelle{data.nouvelles > 1 ? 's' : ''}</span>}</h2>
+      </div>
+      <ul>
+        {data.alertes.slice(0, 8).map((a) => (
+          <li key={a.id_alerte} className={a.statut === 'traitee' ? 'lue' : ''}>
+            <strong>{a.prenom} {a.nom}</strong> ({ROLES[a.role] || a.role}) a ouvert <strong>{a.nb_dossiers} dossiers différents</strong> en moins d'une heure
+            <span className="muted"> · {fmt(a.date_alerte)} · seuil {a.details.seuil}</span>
+            <br /><span className="muted">Dossiers : {a.details.dossiers.join(', ')}</span>
+            {a.statut === 'nouvelle' && <div><button className="btn-secondary btn-mini" onClick={() => traiter(a.id_alerte)}>Marquer comme traitée</button></div>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
 
 function Journal() {
   const [filtres, setFiltres] = useState(VIDE)
@@ -76,7 +102,7 @@ function Journal() {
 export default function JournalAudit() {
   return (
     <AppLayout title="Journal d'audit" subtitle="Qui a consulté quel dossier, et quand" roles={['ADMIN']}>
-      {/* ===== ALERTES DE SÉCURITÉ ===== */}
+      <AlertesSecurite />
       <Journal />
     </AppLayout>
   )

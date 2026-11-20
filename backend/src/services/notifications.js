@@ -159,4 +159,17 @@ async function notifierDocument(idPatient, idPraticien) {
   }
 }
 
-module.exports = { notifierPatient, notifierPraticien, notifierDocument, detailsRdv };
+// US-36 : alerte de sécurité envoyée par e-mail à tous les administrateurs actifs
+async function notifierAdmins({ sujet, texte }) {
+  const { rows } = await db.query(
+    `SELECT u.id_utilisateur, u.email FROM utilisateurs u JOIN roles r USING (id_role)
+      WHERE r.code = 'ADMIN' AND u.statut = 'actif'`,
+  );
+  let n = 0;
+  for (const a of rows) {
+    if (await envoyer({ idDestinataire: a.id_utilisateur, idRdv: null, type: 'securite', canal: 'email', destination: a.email, sujet, texte })) n += 1;
+  }
+  return n;
+}
+
+module.exports = { notifierPatient, notifierPraticien, notifierDocument, notifierAdmins, detailsRdv };
