@@ -101,15 +101,31 @@ router.post('/', validate(schema), async (req, res) => {
     if (!c.fin_ok) return { status: 422, body: { message: 'Une plage ne peut pas dépasser 6 mois' } };
     if (!c.duree_ok) return { status: 422, body: { message: "La plage doit contenir au moins un créneau (fin après début + durée d'un créneau)" } };
 
-    // un praticien ne peut pas être dans deux cliniques à la fois : on refuse tout chevauchement
-    const chevauche = await client.query(
-      `SELECT 1 FROM plages_disponibilite
-        WHERE id_praticien = $1 AND jour_semaine = $2
-          AND heure_debut < $4::time AND heure_fin > $3::time
-          AND date_debut <= $6::date AND date_fin >= $5::date`,
+    // la période doit contenir au moins un jour du jour de semaine choisi (sinon aucun créneau)
+    const { rows: [j] } = await client.query(
+      `SELECT EXISTS (SELECT 1 FROM generate_series($1::date, $2::date, interval '1 day') d
+                       WHERE extract(isodow FROM d) = $3) AS ok`,
+      [c.date_debut, b.dateFin, b.jourSemaine],
+    );
+    if (!j.ok) return { status: 422, body: { message: 'La période choisie ne contient aucun de ces jours de la semaine' } };
+
+    // plages du praticien qui tombent sur au moins une même date que la nouvelle plage
+    const { rows: memesJours } = await client.query(
+      `SELECT p.id_clinique, c.ville, (p.heure_debut < $4::time AND p.heure_fin > $3::time) AS chevauche
+         FROM plages_disponibilite p JOIN cliniques c USING (id_clinique)
+        WHERE p.id_praticien = $1 AND p.jour_semaine = $2
+          AND p.date_debut <= $6::date AND p.date_fin >= $5::date
+          AND EXISTS (SELECT 1 FROM generate_series(GREATEST(p.date_debut, $5::date), LEAST(p.date_fin, $6::date), interval '1 day') d
+                       WHERE extract(isodow FROM d) = $2)`,
       [idPraticien, b.jourSemaine, b.heureDebut, b.heureFin, c.date_debut, b.dateFin],
     );
-    if (chevauche.rowCount) return { status: 409, body: { message: 'Cette plage chevauche une plage déjà publiée' } };
+    // un praticien exerce dans une seule clinique par jour (trajets entre Sousse, Sfax et Tunis)
+    const autreClinique = memesJours.find((m) => m.id_clinique !== b.idClinique);
+    if (autreClinique) {
+      return { status: 409, body: { message: `Vous exercez déjà à ${autreClinique.ville} ce jour-là : une seule clinique par jour.` } };
+    }
+    // et jamais deux plages qui se chevauchent
+    if (memesJours.some((m) => m.chevauche)) return { status: 409, body: { message: 'Cette plage chevauche une plage déjà publiée' } };
 
     const { rows: [plage] } = await client.query(
       `INSERT INTO plages_disponibilite
