@@ -158,3 +158,4 @@ backend/stockage/
 # US-45 : fichiers Vault générés sur la VM
 deploy/vault/secret_id
 deploy/vault/A-METTRE-EN-LIEU-SUR.txt
+rapports-zap/
