@@ -202,3 +202,12 @@ textarea { width: 100%; padding: .6rem .7rem; border: 1px solid var(--line); bor
 .bandeau-maintenance button { position: absolute; right: .6rem; top: .3rem; width: auto; height: auto; margin: 0; padding: 0 .4rem; background: none; border: 0; font-size: 1.2rem; color: inherit; }
 /* US-16 : demandes INPDP */
 .actions-colonne { display: flex; flex-direction: column; gap: .3rem; align-items: flex-end; }
+/* US-31 : supervision */
+.tuiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.tuile { border-top: 4px solid var(--clinique, var(--navy)); }
+.tuile h2 { font-size: 1rem; }
+.tuile .chiffre { font-size: 2rem; font-weight: 800; color: var(--navy); }
+.jauge { height: .5rem; background: #EEF0F3; border-radius: 999px; overflow: hidden; margin: .4rem 0 .8rem; }
+.jauge span { display: block; height: 100%; background: var(--clinique, var(--navy)); }
+.table tr.total td { border-top: 2px solid #CBD2DC; }
+@media (max-width: 960px) { .tuiles { grid-template-columns: 1fr; } }
