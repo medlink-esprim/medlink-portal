@@ -1,10 +1,13 @@
 // Statistiques d'activité (Release 3). Montée sur /api/statistiques :
 //   GET /supervision?du=&au=   (US-31, SUPERVISION_CONSULTER) occupation et rendez-vous par clinique
+//   GET /export.csv?du=&au=    (US-32, STATS_EXPORTER) export anonymisé (US-46) semaine × clinique × spécialité
 // Aucune donnée nominative : uniquement des comptages par clinique.
 const express = require('express');
 const Joi = require('joi');
 const db = require('../db');
 const { requirePermission } = require('../middleware/auth');
+const { journaliser } = require('../security/journal');
+const { masquerPetitsEffectifs, versCsv } = require('../services/anonymisation');
 
 const router = express.Router();
 
@@ -68,6 +71,36 @@ router.get('/supervision', requirePermission('SUPERVISION_CONSULTER'), async (re
   const somme = (k) => cliniques.reduce((s, c) => s + c[k], 0);
   const total = Object.fromEntries(['creneaux_ouverts', 'creneaux_reserves', 'rendez_vous', 'honores', 'annules', 'en_ligne', 'accueil'].map((k) => [k, somme(k)]));
   return res.json({ du: p.du, au: p.au, cliniques, total: { ...total, taux_occupation: taux(total.creneaux_reserves, total.creneaux_ouverts) } });
+});
+
+// US-32 : export CSV anonymisé — une ligne par semaine ISO, clinique, spécialité, origine et statut.
+// Aucune colonne nominative ; les effectifs de 1 ou 2 sont masqués (« <3 »).
+const SQL_EXPORT = `
+  SELECT to_char(c.debut AT TIME ZONE 'Africa/Tunis', 'IYYY-"S"IW') AS semaine,
+         k.ville AS clinique, COALESCE(pr.specialite, 'Non renseignée') AS specialite,
+         r.origine::text AS origine, r.statut::text AS statut, count(*)::int AS nombre
+    FROM rendez_vous r
+    JOIN creneaux c USING (id_creneau)
+    JOIN plages_disponibilite p USING (id_plage)
+    JOIN cliniques k ON k.id_clinique = p.id_clinique
+    LEFT JOIN praticiens pr ON pr.id_utilisateur = p.id_praticien
+   WHERE c.debut >= $1::date::timestamp AT TIME ZONE 'Africa/Tunis'
+     AND c.debut < ($2::date + 1)::timestamp AT TIME ZONE 'Africa/Tunis'
+     AND r.statut <> 'reporte'
+   GROUP BY 1, 2, 3, 4, 5
+   ORDER BY 1, 2, 3, 4, 5`;
+const COLONNES_EXPORT = ['semaine', 'clinique', 'specialite', 'origine', 'statut', 'nombre'];
+
+router.get('/export.csv', requirePermission('STATS_EXPORTER'), async (req, res) => {
+  const p = await lirePeriode(req, res);
+  if (!p) return undefined;
+  const { rows } = await db.query(SQL_EXPORT, [p.du, p.au]);
+  const lignes = masquerPetitsEffectifs(rows);
+  journaliser('STATS_EXPORTEES', req, { du: p.du, au: p.au, lignes: lignes.length });
+  res.set('Content-Type', 'text/csv; charset=utf-8');
+  res.set('Content-Disposition', `attachment; filename="statistiques-medlink-${p.du}-${p.au}.csv"`);
+  res.set('Cache-Control', 'no-store');
+  return res.send(versCsv(COLONNES_EXPORT, lignes));
 });
 
 module.exports = router;

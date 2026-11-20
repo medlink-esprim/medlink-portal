@@ -1,12 +1,13 @@
 // US-31 : supervision des trois cliniques — taux d'occupation et rendez-vous par clinique sur une période.
 import { useEffect, useState } from 'react'
 import { api } from '../api.js'
-import AppLayout from '../components/AppLayout.jsx'
+import AppLayout, { useUser } from '../components/AppLayout.jsx'
 import Alert from '../components/Alert.jsx'
 
 const pct = (v) => (v === null || v === undefined ? '—' : `${String(v).replace('.', ',')} %`)
 
 function Contenu() {
+  const user = useUser()
   const [periode, setPeriode] = useState({ du: '', au: '' })
   const [data, setData] = useState(null)
   const [erreur, setErreur] = useState('')
@@ -27,7 +28,9 @@ function Contenu() {
             <div><label htmlFor="s-du">Du</label><input id="s-du" type="date" value={periode.du || data?.du || ''} onChange={set('du')} /></div>
             <div><label htmlFor="s-au">Au</label><input id="s-au" type="date" value={periode.au || data?.au || ''} onChange={set('au')} /></div>
           </div>
-          {/* ===== EXPORT ANONYMISÉ ===== */}
+          {user?.permissions?.includes('STATS_EXPORTER') && data && (
+            <a className="lien-export" href={`/api/statistiques/export.csv?du=${data.du}&au=${data.au}`}>Exporter (CSV anonymisé)</a>
+          )}
         </div>
         {erreur && <Alert type="error">{erreur}</Alert>}
       </section>
