@@ -1,0 +1,1 @@
+import{j as t}from"./index-C_PA2MpU.js";import{N as i}from"./NouveauMotDePasse-jya7jg-L.js";import"./react-CjWj298R.js";import"./PasswordRules-D_cdTmFo.js";function r(){return t.jsx(i,{title:"Nouveau mot de passe",endpoint:"/auth/reinitialisation",successText:"Mot de passe modifié."})}export{r as default};

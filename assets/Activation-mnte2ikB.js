@@ -1,0 +1,1 @@
+import{j as t}from"./index-C_PA2MpU.js";import{N as o}from"./NouveauMotDePasse-jya7jg-L.js";import"./react-CjWj298R.js";import"./PasswordRules-D_cdTmFo.js";function a(){return t.jsx(o,{title:"Activer mon compte",endpoint:"/auth/activation",successText:"Compte activé. Vous pouvez vous connecter."})}export{a as default};
