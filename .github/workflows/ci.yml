@@ -8,13 +8,13 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, 'ci-verif/**']
+    branches: [main]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.sha }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

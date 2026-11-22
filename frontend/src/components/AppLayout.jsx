@@ -1,9 +1,10 @@
-// Mise en page des espaces connectés (menu latéral des maquettes).
+// Mise en page des espaces connectés : menu latéral avec icônes, barre supérieure (date, session), menu mobile.
 // US-40 : minuteur d'inactivité côté client. Il repart à zéro à chaque appel réussi à l'API
 // (comme derniere_activite côté serveur) ; à 0, l'utilisateur est déconnecté.
 import { createContext, useContext, useEffect, useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { api, EVENEMENT_ACTIVITE } from '../api.js'
+import Icone, { LogoCroix } from './Icone.jsx'
 
 const UserContext = createContext(null)
 export const useUser = () => useContext(UserContext)
@@ -23,6 +24,16 @@ const MENUS = {
   DIRECTION: [['/accueil', 'Tableau de bord'], ['/back-office/supervision', 'Supervision', 'SUPERVISION_CONSULTER'], ['/direction/synthese', 'Synthèse', 'SYNTHESE_CONSULTER']],
 }
 
+// icône de chaque entrée du menu (par chemin)
+const ICONES_MENU = {
+  '/accueil': 'accueil', '/patient/rendez-vous/nouveau': 'calendrierPlus', '/patient/rendez-vous': 'calendrier', '/patient/resultats': 'document',
+  '/patient/profil': 'utilisateur', '/praticien/agenda': 'calendrier', '/praticien/patients': 'utilisateurs', '/praticien/disponibilites': 'horloge',
+  '/back-office/supervision': 'graphique', '/back-office/rendez-vous': 'calendrierPlus', '/back-office/comptes': 'utilisateurs',
+  '/back-office/comptes/nouveau': 'plus', '/admin/roles': 'cle', '/admin/audit': 'bouclier', '/admin/maintenance': 'outil',
+  '/admin/demandes': 'boite', '/direction/synthese': 'tendance',
+}
+const initiales = (u) => `${(u.prenom || '?')[0]}${(u.nom || '')[0] || ''}`.toUpperCase()
+
 function sousTitre(user) {
   if (user.role === 'PATIENT') return `Patient · dossier ${user.numeroDossier || '—'}`
   if (user.role === 'PRATICIEN') return `${user.specialite || 'Praticien'}${user.mfaActive ? ' · MFA actif' : ''}`
@@ -34,6 +45,9 @@ export default function AppLayout({ title, subtitle, roles, children }) {
   const [user, setUser] = useState(null)
   const [derniereActivite, setDerniereActivite] = useState(Date.now())
   const [maintenant, setMaintenant] = useState(Date.now())
+  const [menuOuvert, setMenuOuvert] = useState(false)
+  const { pathname } = useLocation()
+  useEffect(() => { setMenuOuvert(false) }, [pathname])
 
   useEffect(() => {
     api('/auth/me').then((res) => (res.ok ? setUser(res.data) : navigate('/connexion?expiree=1')))
@@ -60,29 +74,45 @@ export default function AppLayout({ title, subtitle, roles, children }) {
     navigate('/connexion')
   }
 
-  if (!user) return null
+  if (!user) return <div className="chargement" aria-busy="true">Chargement…</div>
   const autorise = !roles || roles.includes(user.role)
+  const date = new Date().toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   return (
     <UserContext.Provider value={user}>
-      <div className="app">
-        <aside className="sidebar">
-          <div className="logo logo-light"><span className="logo-mark">+</span>MedLink</div>
+      <div className={`app${menuOuvert ? ' menu-ouvert' : ''}`}>
+        <aside className="sidebar" aria-label="Menu principal">
+          <div className="logo"><span className="logo-mark"><LogoCroix /></span>MedLink</div>
+          <p className="nav-section">{LIBELLES[user.role] || 'Navigation'}</p>
           <nav>
             {(MENUS[user.role] || []).filter(([, , perm]) => !perm || (user.permissions || []).includes(perm)).map(([to, label]) => (
-              <NavLink key={to} to={to} end>{label}</NavLink>
+              <NavLink key={to} to={to} end><Icone nom={ICONES_MENU[to] || 'document'} />{label}</NavLink>
             ))}
           </nav>
           <div className="sidebar-foot">
-            <strong>{user.prenom} {user.nom}</strong>
-            <span>{sousTitre(user)}</span>
-            <span>Session : expire dans {resteMin} min</span>
-            <button className="link-light" onClick={logout}>Se déconnecter</button>
+            <div className="carte-utilisateur">
+              <span className="avatar">{initiales(user)}</span>
+              <div><strong>{user.prenom} {user.nom}</strong><span>{sousTitre(user)}</span></div>
+            </div>
+            <button className="link-light" onClick={logout}><Icone nom="deconnexion" />Se déconnecter</button>
           </div>
         </aside>
+        <div className="voile-menu" onClick={() => setMenuOuvert(false)} aria-hidden="true" />
         <main className="app-main">
-          <h1 className="page-title">{title}</h1>
-          {subtitle && <p className="muted">{subtitle}</p>}
-          {autorise ? children : <div className="alert alert-error">Cette page est réservée à un autre profil.</div>}
+          <header className="topbar">
+            <button className="bouton-menu" onClick={() => setMenuOuvert(true)} aria-label="Ouvrir le menu"><Icone nom="menu" /></button>
+            <span className="date-du-jour">{date}</span>
+            <span className="espace" />
+            <span className={`puce-session${resteMin <= 3 ? ' bientot' : ''}`} title="La session se ferme après une période d'inactivité">
+              <Icone nom="cadenas" />Session : {resteMin} min
+            </span>
+          </header>
+          <div className="contenu-page">
+            <div className="entete-page">
+              <h1 className="page-title">{title}</h1>
+              {subtitle && <p className="muted">{subtitle}</p>}
+            </div>
+            {autorise ? children : <div className="alert alert-error">Cette page est réservée à un autre profil.</div>}
+          </div>
         </main>
       </div>
     </UserContext.Provider>
