@@ -35,7 +35,7 @@ const ICONES_MENU = {
 }
 // libellés courts de la barre de navigation mobile (4 premières entrées du menu)
 const COURTS = {
-  '/accueil': 'Accueil', '/patient/rendez-vous/nouveau': 'Réserver', '/patient/rendez-vous': 'Rendez-vous', '/patient/resultats': 'Résultats',
+  '/accueil': 'Accueil', '/patient/rendez-vous/nouveau': 'Réserver', '/patient/rendez-vous': 'Mes RDV', '/patient/resultats': 'Résultats',
   '/patient/profil': 'Profil', '/praticien/agenda': 'Agenda', '/praticien/patients': 'Patients', '/praticien/disponibilites': 'Horaires',
   '/back-office/supervision': 'Supervision', '/back-office/rendez-vous': 'RDV', '/back-office/comptes': 'Comptes',
   '/back-office/comptes/nouveau': 'Créer', '/admin/roles': 'Rôles', '/admin/audit': 'Audit', '/admin/maintenance': 'Maintenance',

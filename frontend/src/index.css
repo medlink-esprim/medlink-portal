@@ -427,8 +427,13 @@ td { padding: .6rem 0; border-bottom: 1px solid var(--line-soft); }
   .barre-mobile a.active { color: var(--primary-700); background: var(--primary-50); }
   .sidebar { z-index: 30; padding-top: calc(1.3rem + env(safe-area-inset-top)); }
 }
+@media (max-width: 960px) {
+  .colonne, .card, .grille-tableau > *, [class*="two-cols"] > * { min-width: 0; }   /* une grille ne déborde plus de l'écran */
+  .card svg { max-width: 100%; }
+}
 @media (max-width: 720px) {
-  input, select, textarea { font-size: 16px; }     /* évite le zoom automatique de Safari sur iPhone */
+  input, select, textarea { font-size: 16px; }
+  .filtres-audit { grid-template-columns: 1fr; }     /* évite le zoom automatique de Safari sur iPhone */
   .table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
   .card { padding: 1rem 1.05rem; }
 }
