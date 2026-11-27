@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { api, EVENEMENT_ACTIVITE } from '../api.js'
 import Icone, { LogoCroix } from './Icone.jsx'
+import InstallerApp from './InstallerApp.jsx'
 
 const UserContext = createContext(null)
 export const useUser = () => useContext(UserContext)
@@ -31,6 +32,14 @@ const ICONES_MENU = {
   '/back-office/supervision': 'graphique', '/back-office/rendez-vous': 'calendrierPlus', '/back-office/comptes': 'utilisateurs',
   '/back-office/comptes/nouveau': 'plus', '/admin/roles': 'cle', '/admin/audit': 'bouclier', '/admin/maintenance': 'outil',
   '/admin/demandes': 'boite', '/direction/synthese': 'tendance',
+}
+// libellés courts de la barre de navigation mobile (4 premières entrées du menu)
+const COURTS = {
+  '/accueil': 'Accueil', '/patient/rendez-vous/nouveau': 'Réserver', '/patient/rendez-vous': 'Rendez-vous', '/patient/resultats': 'Résultats',
+  '/patient/profil': 'Profil', '/praticien/agenda': 'Agenda', '/praticien/patients': 'Patients', '/praticien/disponibilites': 'Horaires',
+  '/back-office/supervision': 'Supervision', '/back-office/rendez-vous': 'RDV', '/back-office/comptes': 'Comptes',
+  '/back-office/comptes/nouveau': 'Créer', '/admin/roles': 'Rôles', '/admin/audit': 'Audit', '/admin/maintenance': 'Maintenance',
+  '/admin/demandes': 'INPDP', '/direction/synthese': 'Synthèse',
 }
 const initiales = (u) => `${(u.prenom || '?')[0]}${(u.nom || '')[0] || ''}`.toUpperCase()
 
@@ -76,6 +85,7 @@ export default function AppLayout({ title, subtitle, roles, children }) {
 
   if (!user) return <div className="chargement" aria-busy="true">Chargement…</div>
   const autorise = !roles || roles.includes(user.role)
+  const entrees = (MENUS[user.role] || []).filter(([, , perm]) => !perm || (user.permissions || []).includes(perm))
   const date = new Date().toLocaleDateString('fr-FR', { timeZone: 'Africa/Tunis', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   return (
     <UserContext.Provider value={user}>
@@ -84,11 +94,12 @@ export default function AppLayout({ title, subtitle, roles, children }) {
           <div className="logo"><span className="logo-mark"><LogoCroix /></span>MedLink</div>
           <p className="nav-section">{LIBELLES[user.role] || 'Navigation'}</p>
           <nav>
-            {(MENUS[user.role] || []).filter(([, , perm]) => !perm || (user.permissions || []).includes(perm)).map(([to, label]) => (
+            {entrees.map(([to, label]) => (
               <NavLink key={to} to={to} end><Icone nom={ICONES_MENU[to] || 'document'} />{label}</NavLink>
             ))}
           </nav>
           <div className="sidebar-foot">
+            <InstallerApp />
             <div className="carte-utilisateur">
               <span className="avatar">{initiales(user)}</span>
               <div><strong>{user.prenom} {user.nom}</strong><span>{sousTitre(user)}</span></div>
@@ -114,6 +125,12 @@ export default function AppLayout({ title, subtitle, roles, children }) {
             {autorise ? children : <div className="alert alert-error">Cette page est réservée à un autre profil.</div>}
           </div>
         </main>
+        <nav className="barre-mobile" aria-label="Navigation rapide">
+          {entrees.slice(0, 4).map(([to, label]) => (
+            <NavLink key={to} to={to} end aria-label={label}><Icone nom={ICONES_MENU[to] || 'document'} /><span>{COURTS[to] || label}</span></NavLink>
+          ))}
+          <button type="button" onClick={() => setMenuOuvert(true)} aria-label="Ouvrir le menu"><Icone nom="menu" /><span>Menu</span></button>
+        </nav>
       </div>
     </UserContext.Provider>
   )

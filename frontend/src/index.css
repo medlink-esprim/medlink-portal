@@ -408,4 +408,29 @@ td { padding: .6rem 0; border-bottom: 1px solid var(--line-soft); }
 @media (max-width: 1100px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grille-tableau { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .stats { grid-template-columns: 1fr; } .actions-rapides { grid-template-columns: 1fr; } .accueil-hero { padding: 1.3rem; } }
 
+/* ---------- version mobile (application installable) ---------- */
+.installer-app { margin-bottom: .6rem; }
+.btn-installer { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; width: 100%; padding: .6rem .8rem; border-radius: 10px; border: 1px dashed var(--primary-100); background: var(--primary-50); color: var(--primary-700); font-weight: 600; font-size: .88rem; }
+.btn-installer svg { width: 18px; height: 18px; }
+.btn-installer:hover { border-style: solid; border-color: var(--primary); }
+.installer-auth { margin: 1.4rem 0 0; }
+.aide-ios { font-size: .82rem; color: var(--muted); margin: .5rem 0 0; text-align: center; }
+.barre-mobile { display: none; }
+@media (max-width: 960px) {
+  .topbar { padding-top: calc(.9rem + env(safe-area-inset-top)); }
+  .contenu-page { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+  .page-title { font-size: 1.4rem; }
+  .barre-mobile { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; position: fixed; left: 0; right: 0; bottom: 0; z-index: 22; padding: .35rem .4rem calc(.35rem + env(safe-area-inset-bottom)); background: rgba(255, 255, 255, .94); backdrop-filter: saturate(160%) blur(12px); border-top: 1px solid var(--line); box-shadow: 0 -6px 20px rgba(15, 42, 68, .06); }
+  .barre-mobile a, .barre-mobile button { display: flex; flex-direction: column; align-items: center; gap: .15rem; padding: .35rem .2rem; border: 0; background: none; border-radius: 12px; color: #7A8BA0; font-size: .68rem; font-weight: 600; text-decoration: none; min-width: 0; }
+  .barre-mobile span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .barre-mobile svg { width: 22px; height: 22px; }
+  .barre-mobile a.active { color: var(--primary-700); background: var(--primary-50); }
+  .sidebar { z-index: 30; padding-top: calc(1.3rem + env(safe-area-inset-top)); }
+}
+@media (max-width: 720px) {
+  input, select, textarea { font-size: 16px; }     /* évite le zoom automatique de Safari sur iPhone */
+  .table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+  .card { padding: 1rem 1.05rem; }
+}
+@media (display-mode: standalone) { .installer-app { display: none; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
