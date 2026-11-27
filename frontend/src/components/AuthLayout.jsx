@@ -1,5 +1,6 @@
 // Mise en page commune des écrans d'authentification : panneau de présentation + carte du formulaire.
 import Icone, { LogoCroix, TraceEcg } from './Icone.jsx'
+import InstallerApp from './InstallerApp.jsx'
 
 const POINTS = [
   ['calendrierPlus', 'Rendez-vous en ligne, 24 h sur 24 dans les trois cliniques'],
@@ -32,6 +33,7 @@ export default function AuthLayout({ title, subtitle, children }) {
           <h1>{title}</h1>
           {subtitle && <p className="muted">{subtitle}</p>}
           {children}
+          <InstallerApp className="installer-auth" />
         </main>
       </div>
     </div>
